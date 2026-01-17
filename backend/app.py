@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from backboard import BackboardClient
 import asyncio
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, UTC
 from services.video_service import start_video_indexing
 
 load_dotenv()
@@ -21,9 +21,22 @@ def create_app():
         mongo_client = None
         db = None
     else:
-        mongo_client = MongoClient(MONGODB_URI)
-        db = mongo_client["no-more-tears"] 
-        print("✅ MongoDB connected successfully")
+        try:
+            # For development: allow invalid certificates to avoid SSL issues on macOS
+            # In production, you should properly configure SSL certificates
+            mongo_client = MongoClient(
+                MONGODB_URI,
+                tlsAllowInvalidCertificates=True  # Only for development
+            )
+            # Test the connection
+            mongo_client.admin.command('ping')
+            db = mongo_client["no-more-tears"] 
+            print("✅ MongoDB connected successfully")
+        except Exception as e:
+            print(f"⚠️  MongoDB connection failed: {e}")
+            print("⚠️  Chat history will not be saved.")
+            mongo_client = None
+            db = None
 
     # Initialize Twelve Labs client
         TWELVELABS_API_KEY = os.getenv("TWELVELABS_API_KEY")
@@ -64,7 +77,7 @@ def create_app():
                 "content": user_message,
                 "provider": provider,
                 "model": model,
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             })
 
         # Run all async operations in a single event loop
@@ -99,7 +112,7 @@ def create_app():
                 "model": model,
                 "assistant_id": str(assistant.assistant_id),
                 "thread_id": str(thread.thread_id),
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             })
 
         return jsonify({
@@ -226,7 +239,7 @@ Use the get_video_rewind_data tool to fetch student interaction data, then analy
                 "video_id": video_id,
                 "video_title": video_title,
                 "analysis": analysis,
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             })
 
         return jsonify({
@@ -309,7 +322,7 @@ Task: {task}
                 "content_type": content_type,
                 "content": generated_content,
                 "topics": topics,
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(UTC)
             })
 
         return jsonify({
@@ -369,5 +382,5 @@ Task: {task}
 
 if __name__ == "__main__":
     app = create_app()
-    port = int(os.getenv("FLASK_PORT", "5000"))
+    port = int(os.getenv("FLASK_PORT", "5001"))  # Changed default from 5000 to 5001 to avoid AirPlay conflict
     app.run(host="0.0.0.0", port=port, debug=True)

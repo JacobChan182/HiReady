@@ -59,7 +59,7 @@ npm run dev:all
 # Or start them individually:
 npm run dev:frontend   # Runs on http://localhost:5173
 npm run dev:server     # Runs on http://localhost:3001
-npm run dev:flask      # Runs on http://localhost:5000 (for Twelve Labs indexing)
+npm run dev:flask      # Runs on http://localhost:5001 (for Twelve Labs indexing)
 ```
 
 ### 2. Log In as Instructor
