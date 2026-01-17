@@ -107,6 +107,61 @@ export const mockLectures: Lecture[] = [
   },
 ];
 
+// Transform MongoDB course data to Lecture format
+export const transformCourseLectures = (courseData: any): Lecture[] => {
+  if (!courseData?.lectures || !Array.isArray(courseData.lectures)) {
+    return [];
+  }
+
+  return courseData.lectures.map((lecture: any) => ({
+    id: lecture.lectureId,
+    title: lecture.lectureTitle,
+    courseId: lecture.courseId || courseData.courseId,
+    videoUrl: lecture.videoUrl || '',
+    duration: 0, // Duration not stored in MongoDB, will need to be calculated or stored
+    concepts: [], // Concepts not stored in MongoDB course model, will need separate fetch
+    uploadedAt: lecture.createdAt ? new Date(lecture.createdAt) : new Date(),
+  }));
+};
+
+// Transform aggregated instructor lectures response
+export const transformInstructorLectures = (responseData: any): { lectures: Lecture[], courses: any[] } => {
+  if (!responseData?.data) {
+    return { lectures: [], courses: [] };
+  }
+
+  const allLectures = responseData.data.lectures || [];
+  const courses = responseData.data.courses || [];
+
+  const transformedLectures: Lecture[] = allLectures.map((lecture: any) => ({
+    id: lecture.lectureId,
+    title: lecture.lectureTitle,
+    courseId: lecture.courseId,
+    videoUrl: lecture.videoUrl || '',
+    duration: 0,
+    concepts: [],
+    uploadedAt: lecture.createdAt ? new Date(lecture.createdAt) : new Date(),
+  }));
+
+  return { lectures: transformedLectures, courses };
+};
+
+// Helper to merge real lectures with mock data (for concepts, duration, etc.)
+export const enrichLecturesWithMockData = (realLectures: Lecture[]): Lecture[] => {
+  return realLectures.map(lecture => {
+    // Try to find matching mock lecture for concepts and duration
+    const mockLecture = mockLectures.find(m => m.id === lecture.id);
+    if (mockLecture) {
+      return {
+        ...lecture,
+        duration: lecture.duration || mockLecture.duration,
+        concepts: lecture.concepts.length > 0 ? lecture.concepts : mockLecture.concepts,
+      };
+    }
+    return lecture;
+  });
+};
+
 // Generate mock analytics events
 const clusters: BehavioralCluster[] = ['high-replay', 'fast-watcher', 'note-taker', 'late-night-learner', 'steady-pacer'];
 

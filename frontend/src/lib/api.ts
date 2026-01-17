@@ -125,3 +125,79 @@ export const trackLoginEvent = async (
     throw error;
   }
 };
+
+// Get instructor courses and lectures
+export const getInstructorLectures = async (instructorId: string) => {
+  try {
+    const response = await fetch(`${API_URL}/courses/instructor/${instructorId}/lectures`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        // No courses found, return empty data
+        return { success: true, data: { lectures: [], courses: [] } };
+      }
+      throw new Error('Failed to fetch instructor lectures');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching instructor lectures:', error);
+    throw error;
+  }
+};
+
+// Create a new course
+export const createCourse = async (courseId: string, courseName: string, instructorId: string) => {
+  try {
+    const response = await fetch(`${API_URL}/courses`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        courseId,
+        courseName,
+        instructorId,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create course');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating course:', error);
+    throw error;
+  }
+};
+
+// Get all courses for an instructor
+export const getInstructorCourses = async (instructorId: string) => {
+  try {
+    const response = await fetch(`${API_URL}/courses/instructor/${instructorId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return { success: true, data: [] };
+      }
+      throw new Error('Failed to fetch courses');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching courses:', error);
+    throw error;
+  }
+};

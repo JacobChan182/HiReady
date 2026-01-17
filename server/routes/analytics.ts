@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { Student } from '../models/Student';
-import { Lecturer } from '../models/Lecturer';
+import { Course } from '../models/Course';
 
 const router = express.Router();
 
@@ -32,6 +32,7 @@ router.post('/rewind', async (req: Request, res: Response) => {
         lectures: [{
           lectureId,
           lectureTitle,
+          assignedAt: new Date(),
           rewindEvents: [rewindEvent],
           lastAccessedAt: new Date(),
         }],
@@ -46,6 +47,7 @@ router.post('/rewind', async (req: Request, res: Response) => {
         student.lectures.push({
           lectureId,
           lectureTitle,
+          assignedAt: new Date(),
           rewindEvents: [rewindEvent],
           lastAccessedAt: new Date(),
         });
@@ -58,79 +60,34 @@ router.post('/rewind', async (req: Request, res: Response) => {
       await student.save();
     }
 
-    // Update Lecturer collection
-    // Find lecturer who owns this lecture (by courseId and lectureId)
-    // First, try to find by lectureId
-    let lecturer = await Lecturer.findOne({ 'lectures.lectureId': lectureId });
+    // Update Course collection
+    // Find course by courseId
+    let course = await Course.findOne({ courseId });
     
-    // If lecturer not found, we may need to create one based on the courseId
-    // For now, we'll try to find or create based on instructor pattern
-    // In a real app, you'd have a mapping of courseId -> instructorId
-    // For this implementation, we'll assume the instructor ID is derived from course
-    if (!lecturer) {
-      // Try to find lecturer by course pattern (instructor-1 is the default instructor)
-      const instructorId = 'instructor-1'; // In production, get from courseId mapping
-      lecturer = await Lecturer.findOne({ userId: instructorId });
+    if (!course) {
+      // Course doesn't exist - this shouldn't happen if courses are created properly
+      // But we'll log it and continue (student data is already saved)
+      console.warn(`Course ${courseId} not found when tracking rewind event`);
+    } else {
+      // Find lecture within the course
+      let lecture = course.lectures.find(l => l.lectureId === lectureId);
       
-      if (!lecturer) {
-        // Create new lecturer if doesn't exist
-        lecturer = new Lecturer({
-          userId: instructorId,
-          lectures: [{
-            lectureId,
-            lectureTitle,
-            courseId,
-            createdAt: new Date(),
-            studentRewindEvents: [{
-              studentId: userId,
-              studentPseudonymId: pseudonymId,
-              rewindEvents: [rewindEvent],
-            }],
+      if (!lecture) {
+        // Lecture doesn't exist in course - add it
+        course.lectures.push({
+          lectureId,
+          lectureTitle,
+          courseId,
+          createdAt: new Date(),
+          studentRewindEvents: [{
+            studentId: userId,
+            studentPseudonymId: pseudonymId,
+            rewindEvents: [rewindEvent],
           }],
         });
-        await lecturer.save();
+        await course.save();
       } else {
-        // Check if lecture already exists in lecturer's lectures
-        const existingLecture = lecturer.lectures.find(l => l.lectureId === lectureId);
-        
-        if (!existingLecture) {
-          // Add lecture to existing lecturer
-          lecturer.lectures.push({
-            lectureId,
-            lectureTitle,
-            courseId,
-            createdAt: new Date(),
-            studentRewindEvents: [{
-              studentId: userId,
-              studentPseudonymId: pseudonymId,
-              rewindEvents: [rewindEvent],
-            }],
-          });
-          await lecturer.save();
-        } else {
-          // Lecture exists, add rewind event
-          let studentRewindData = existingLecture.studentRewindEvents.find(
-            s => s.studentId === userId
-          );
-          
-          if (!studentRewindData) {
-            existingLecture.studentRewindEvents.push({
-              studentId: userId,
-              studentPseudonymId: pseudonymId,
-              rewindEvents: [rewindEvent],
-            });
-          } else {
-            studentRewindData.rewindEvents.push(rewindEvent);
-          }
-          
-          await lecturer.save();
-        }
-      }
-    } else {
-      // Lecturer found with lecture
-      const lecture = lecturer.lectures.find(l => l.lectureId === lectureId);
-      
-      if (lecture) {
+        // Lecture exists, add rewind event
         let studentRewindData = lecture.studentRewindEvents.find(
           s => s.studentId === userId
         );
@@ -147,7 +104,7 @@ router.post('/rewind', async (req: Request, res: Response) => {
           studentRewindData.rewindEvents.push(rewindEvent);
         }
         
-        await lecturer.save();
+        await course.save();
       }
     }
 
