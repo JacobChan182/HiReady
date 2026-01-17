@@ -5,7 +5,7 @@ import { signup, signin } from '@/lib/api';
 interface AuthContextType {
   user: User | null;
   signup: (email: string, password: string, role: UserRole) => Promise<void>;
-  signin: (email: string, password: string) => Promise<void>;
+  signin: (email: string, password: string, role: UserRole) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
   error: string | null;
@@ -41,10 +41,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const handleSignin = useCallback(async (email: string, password: string) => {
+  const handleSignin = useCallback(async (email: string, password: string, role: UserRole) => {
     try {
       setError(null);
-      const response = await signin(email, password);
+      const response = await signin(email, password, role);
       
       if (response.success && response.data) {
         const userData = response.data;

@@ -83,10 +83,14 @@ router.post('/signup', async (req: Request, res: Response) => {
 // Sign in
 router.post('/signin', async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+    if (!email || !password || !role) {
+      return res.status(400).json({ error: 'Email, password, and role are required' });
+    }
+
+    if (!['student', 'instructor'].includes(role)) {
+      return res.status(400).json({ error: 'Role must be either "student" or "instructor"' });
     }
 
     // Find user by email
@@ -99,6 +103,13 @@ router.post('/signin', async (req: Request, res: Response) => {
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Validate that the user's role matches the requested role
+    if (user.role !== role) {
+      return res.status(403).json({ 
+        error: `This account is registered as ${user.role}. Please select the correct role.` 
+      });
     }
 
     // Track signin event

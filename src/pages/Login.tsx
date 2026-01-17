@@ -41,8 +41,8 @@ const Login = () => {
   };
 
   const handleSignin = async () => {
-    if (!email || !password) {
-      setError('Please fill in all fields');
+    if (!selectedRole || !email || !password) {
+      setError('Please fill in all fields and select a role');
       return;
     }
 
@@ -50,7 +50,7 @@ const Login = () => {
     setError(null);
 
     try {
-      await signin(email, password);
+      await signin(email, password, selectedRole);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
     } finally {
@@ -186,9 +186,12 @@ const Login = () => {
                 </Button>
                 <Button
                   onClick={() => {
-                    setMode('signin');
-                    setError(null);
+                    if (selectedRole) {
+                      setMode('signin');
+                      setError(null);
+                    }
                   }}
+                  disabled={!selectedRole}
                   className="gradient-bg glow px-6"
                 >
                   Sign In
@@ -218,7 +221,7 @@ const Login = () => {
                 <p className="text-muted-foreground text-sm">
                   {mode === 'signup' 
                     ? `Sign up as ${selectedRole ? roles.find(r => r.id === selectedRole)?.title : '...'}`
-                    : 'Enter your credentials to continue'
+                    : `Sign in as ${selectedRole ? roles.find(r => r.id === selectedRole)?.title : '...'}`
                   }
                 </p>
               </div>
@@ -278,7 +281,7 @@ const Login = () => {
                 <div className="flex flex-col gap-3 pt-2">
                   <Button
                     onClick={mode === 'signup' ? handleSignup : handleSignin}
-                    disabled={isLoading || (mode === 'signup' && !selectedRole)}
+                    disabled={isLoading || !selectedRole}
                     className="gradient-bg glow w-full"
                   >
                     {isLoading ? (

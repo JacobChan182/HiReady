@@ -24,14 +24,14 @@ export const signup = async (email: string, password: string, role: 'student' | 
 };
 
 // Sign in
-export const signin = async (email: string, password: string) => {
+export const signin = async (email: string, password: string, role: 'student' | 'instructor') => {
   try {
     const response = await fetch(`${API_URL}/auth/signin`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, role }),
     });
 
     if (!response.ok) {
