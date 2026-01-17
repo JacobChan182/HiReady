@@ -1,4 +1,4 @@
-import { User, Course, Lecture, Concept, AnalyticsEvent, BehavioralCluster } from '@/types';
+import { User, TrainingProgram, TrainingSession, Concept, AnalyticsEvent, BehavioralCluster } from '@/types';
 
 // Generate pseudonymous ID
 export const generatePseudonymId = (): string => {
@@ -8,168 +8,168 @@ export const generatePseudonymId = (): string => {
   return `${adjectives[Math.floor(Math.random() * adjectives.length)]}${animals[Math.floor(Math.random() * animals.length)]}${number}`;
 };
 
-export const mockCourses: Course[] = [
+export const mockTrainingPrograms: TrainingProgram[] = [
   {
-    id: 'course-1',
-    name: 'Introduction to Machine Learning',
-    code: 'CS 4820',
-    instructorId: 'instructor-1',
-    lectureIds: ['lecture-1', 'lecture-2'],
+    id: 'training-program-1',
+    name: 'Workplace Safety Training',
+    code: 'SAFETY-101',
+    trainerId: 'trainer-1',
+    trainingSessionIds: ['training-session-1', 'training-session-2'],
   },
   {
-    id: 'course-2',
-    name: 'Data Structures & Algorithms',
-    code: 'CS 2110',
-    instructorId: 'instructor-1',
-    lectureIds: ['lecture-3'],
+    id: 'training-program-2',
+    name: 'Machinery Operation Basics',
+    code: 'MACH-201',
+    trainerId: 'trainer-1',
+    trainingSessionIds: ['training-session-3'],
   },
 ];
 
 export const mockConcepts: Concept[] = [
-  // Lecture 1 concepts
+  // Training Session 1 concepts
   {
     id: 'concept-1',
-    name: 'What is Machine Learning?',
-    summary: 'Introduction to ML as a field that enables computers to learn from data without explicit programming.',
+    name: 'Workplace Safety Fundamentals',
+    summary: 'Introduction to basic workplace safety principles and regulations.',
     startTime: 0,
     endTime: 180,
-    lectureId: 'lecture-1',
+    trainingSessionId: 'training-session-1',
   },
   {
     id: 'concept-2',
-    name: 'Supervised Learning',
-    summary: 'Learning paradigm where models learn from labeled training data to make predictions.',
+    name: 'Hazard Identification',
+    summary: 'How to identify and assess workplace hazards effectively.',
     startTime: 180,
     endTime: 420,
-    lectureId: 'lecture-1',
+    trainingSessionId: 'training-session-1',
   },
   {
     id: 'concept-3',
-    name: 'Gradient Descent',
-    summary: 'Optimization algorithm used to minimize loss functions by iteratively moving toward the minimum.',
+    name: 'Personal Protective Equipment',
+    summary: 'Proper selection, use, and maintenance of PPE.',
     startTime: 420,
     endTime: 720,
-    lectureId: 'lecture-1',
+    trainingSessionId: 'training-session-1',
   },
   {
     id: 'concept-4',
-    name: 'Neural Network Basics',
-    summary: 'Architecture of interconnected nodes that process information using weighted connections.',
+    name: 'Emergency Procedures',
+    summary: 'Essential emergency response protocols and evacuation procedures.',
     startTime: 720,
     endTime: 1020,
-    lectureId: 'lecture-1',
+    trainingSessionId: 'training-session-1',
   },
   {
     id: 'concept-5',
-    name: 'Backpropagation',
-    summary: 'Algorithm for computing gradients efficiently in neural networks using chain rule.',
+    name: 'Incident Reporting',
+    summary: 'Proper documentation and reporting of workplace incidents.',
     startTime: 1020,
     endTime: 1380,
-    lectureId: 'lecture-1',
+    trainingSessionId: 'training-session-1',
   },
-  // Lecture 2 concepts
+  // Training Session 2 concepts
   {
     id: 'concept-6',
-    name: 'Overfitting & Regularization',
-    summary: 'Techniques to prevent models from memorizing training data instead of learning patterns.',
+    name: 'Machinery Safety Basics',
+    summary: 'Fundamental safety practices when operating machinery.',
     startTime: 0,
     endTime: 300,
-    lectureId: 'lecture-2',
+    trainingSessionId: 'training-session-2',
   },
   {
     id: 'concept-7',
-    name: 'Cross-Validation',
-    summary: 'Method to assess model performance by partitioning data into training and validation sets.',
+    name: 'Lockout/Tagout Procedures',
+    summary: 'Critical safety procedures for equipment maintenance.',
     startTime: 300,
     endTime: 600,
-    lectureId: 'lecture-2',
+    trainingSessionId: 'training-session-2',
   },
 ];
 
-export const mockLectures: Lecture[] = [
+export const mockTrainingSessions: TrainingSession[] = [
   {
-    id: 'lecture-1',
-    title: 'Introduction to Neural Networks',
-    courseId: 'course-1',
+    id: 'training-session-1',
+    title: 'Workplace Safety Essentials',
+    trainingProgramId: 'training-program-1',
     videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
     duration: 1380,
-    concepts: mockConcepts.filter(c => c.lectureId === 'lecture-1'),
+    concepts: mockConcepts.filter(c => c.trainingSessionId === 'training-session-1'),
     uploadedAt: new Date('2024-01-15'),
   },
   {
-    id: 'lecture-2',
-    title: 'Model Evaluation Techniques',
-    courseId: 'course-1',
+    id: 'training-session-2',
+    title: 'Machinery Safety Protocols',
+    trainingProgramId: 'training-program-1',
     videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
     duration: 600,
-    concepts: mockConcepts.filter(c => c.lectureId === 'lecture-2'),
+    concepts: mockConcepts.filter(c => c.trainingSessionId === 'training-session-2'),
     uploadedAt: new Date('2024-01-22'),
   },
 ];
 
-// Transform MongoDB course data to Lecture format
-export const transformCourseLectures = (courseData: any): Lecture[] => {
-  if (!courseData?.lectures || !Array.isArray(courseData.lectures)) {
+// Transform MongoDB training program data to TrainingSession format
+export const transformTrainingProgramSessions = (trainingProgramData: any): TrainingSession[] => {
+  if (!trainingProgramData?.trainingSessions || !Array.isArray(trainingProgramData.trainingSessions)) {
     return [];
   }
 
-  return courseData.lectures.map((lecture: any) => ({
-    id: lecture.lectureId,
-    title: lecture.lectureTitle,
-    courseId: lecture.courseId || courseData.courseId,
-    videoUrl: lecture.videoUrl || '',
+  return trainingProgramData.trainingSessions.map((trainingSession: any) => ({
+    id: trainingSession.trainingSessionId,
+    title: trainingSession.trainingSessionTitle,
+    trainingProgramId: trainingSession.trainingProgramId || trainingProgramData.trainingProgramId,
+    videoUrl: trainingSession.videoUrl || '',
     duration: 0, // Duration not stored in MongoDB, will need to be calculated or stored
-    concepts: [], // Concepts not stored in MongoDB course model, will need separate fetch
-    uploadedAt: lecture.createdAt ? new Date(lecture.createdAt) : new Date(),
+    concepts: [], // Concepts not stored in MongoDB training program model, will need separate fetch
+    uploadedAt: trainingSession.createdAt ? new Date(trainingSession.createdAt) : new Date(),
   }));
 };
 
-// Transform aggregated instructor lectures response
-export const transformInstructorLectures = (responseData: any): { lectures: Lecture[], courses: any[] } => {
+// Transform aggregated trainer training sessions response
+export const transformTrainerTrainingSessions = (responseData: any): { trainingSessions: TrainingSession[], trainingPrograms: any[] } => {
   if (!responseData?.data) {
-    return { lectures: [], courses: [] };
+    return { trainingSessions: [], trainingPrograms: [] };
   }
 
-  const allLectures = responseData.data.lectures || [];
-  const courses = responseData.data.courses || [];
+  const allTrainingSessions = responseData.data.trainingSessions || [];
+  const trainingPrograms = responseData.data.trainingPrograms || [];
 
-  const transformedLectures: Lecture[] = allLectures.map((lecture: any) => ({
-    id: lecture.lectureId,
-    title: lecture.lectureTitle,
-    courseId: lecture.courseId,
-    videoUrl: lecture.videoUrl || '',
+  const transformedTrainingSessions: TrainingSession[] = allTrainingSessions.map((trainingSession: any) => ({
+    id: trainingSession.trainingSessionId,
+    title: trainingSession.trainingSessionTitle,
+    trainingProgramId: trainingSession.trainingProgramId,
+    videoUrl: trainingSession.videoUrl || '',
     duration: 0,
     concepts: [],
-    uploadedAt: lecture.createdAt ? new Date(lecture.createdAt) : new Date(),
+    uploadedAt: trainingSession.createdAt ? new Date(trainingSession.createdAt) : new Date(),
   }));
 
-  return { lectures: transformedLectures, courses };
+  return { trainingSessions: transformedTrainingSessions, trainingPrograms };
 };
 
-// Helper to merge real lectures with mock data (for concepts, duration, etc.)
-export const enrichLecturesWithMockData = (realLectures: Lecture[]): Lecture[] => {
-  return realLectures.map(lecture => {
-    // Try to find matching mock lecture for concepts and duration
-    const mockLecture = mockLectures.find(m => m.id === lecture.id);
-    if (mockLecture) {
+// Helper to merge real training sessions with mock data (for concepts, duration, etc.)
+export const enrichTrainingSessionsWithMockData = (realTrainingSessions: TrainingSession[]): TrainingSession[] => {
+  return realTrainingSessions.map(trainingSession => {
+    // Try to find matching mock training session for concepts and duration
+    const mockTrainingSession = mockTrainingSessions.find(m => m.id === trainingSession.id);
+    if (mockTrainingSession) {
       return {
-        ...lecture,
-        duration: lecture.duration || mockLecture.duration,
-        concepts: lecture.concepts.length > 0 ? lecture.concepts : mockLecture.concepts,
+        ...trainingSession,
+        duration: trainingSession.duration || mockTrainingSession.duration,
+        concepts: trainingSession.concepts.length > 0 ? trainingSession.concepts : mockTrainingSession.concepts,
       };
     }
-    return lecture;
+    return trainingSession;
   });
 };
 
 // Generate mock analytics events
 const clusters: BehavioralCluster[] = ['high-replay', 'fast-watcher', 'note-taker', 'late-night-learner', 'steady-pacer'];
 
-export const mockStudents: User[] = Array.from({ length: 45 }, (_, i) => ({
-  id: `student-${i + 1}`,
+export const mockEmployees: User[] = Array.from({ length: 45 }, (_, i) => ({
+  id: `employee-${i + 1}`,
   pseudonymId: generatePseudonymId(),
-  role: 'student' as const,
-  courseIds: ['course-1'],
+  role: 'employee' as const,
+  trainingProgramIds: ['training-program-1'],
   cluster: clusters[Math.floor(Math.random() * clusters.length)],
   createdAt: new Date('2024-01-01'),
 }));
@@ -183,7 +183,7 @@ export const generateMockEvents = (): AnalyticsEvent[] => {
   // Concepts that are "confusing" - will have more replays and drop-offs
   const confusingConcepts = ['concept-3', 'concept-5']; // Gradient Descent & Backpropagation
 
-  mockStudents.forEach(student => {
+  mockEmployees.forEach(employee => {
     mockConcepts.forEach(concept => {
       const isConfusing = confusingConcepts.includes(concept.id);
       const numEvents = isConfusing ? Math.floor(Math.random() * 8) + 5 : Math.floor(Math.random() * 4) + 1;
@@ -195,9 +195,9 @@ export const generateMockEvents = (): AnalyticsEvent[] => {
 
         events.push({
           id: `event-${events.length}`,
-          userId: student.id,
-          courseId: 'course-1',
-          lectureId: concept.lectureId,
+          userId: employee.id,
+          trainingProgramId: 'training-program-1',
+          trainingSessionId: concept.trainingSessionId,
           conceptId: concept.id,
           eventType,
           timestamp: concept.startTime + Math.random() * (concept.endTime - concept.startTime),
@@ -253,19 +253,19 @@ export const calculateClusterInsights = () => {
     'steady-pacer': { students: [], conceptStruggles: {} },
   };
 
-  mockStudents.forEach(student => {
-    if (student.cluster) {
-      clusterData[student.cluster].students.push(student.id);
+  mockEmployees.forEach(employee => {
+    if (employee.cluster) {
+      clusterData[employee.cluster].students.push(employee.id);
     }
   });
 
   mockEvents.forEach(event => {
-    const student = mockStudents.find(s => s.id === event.userId);
-    if (student?.cluster && event.conceptId && (event.eventType === 'replay' || event.eventType === 'drop-off')) {
-      if (!clusterData[student.cluster].conceptStruggles[event.conceptId]) {
-        clusterData[student.cluster].conceptStruggles[event.conceptId] = 0;
+    const employee = mockEmployees.find(e => e.id === event.userId);
+    if (employee?.cluster && event.conceptId && (event.eventType === 'replay' || event.eventType === 'drop-off')) {
+      if (!clusterData[employee.cluster].conceptStruggles[event.conceptId]) {
+        clusterData[employee.cluster].conceptStruggles[event.conceptId] = 0;
       }
-      clusterData[student.cluster].conceptStruggles[event.conceptId]++;
+      clusterData[employee.cluster].conceptStruggles[event.conceptId]++;
     }
   });
 
@@ -277,9 +277,16 @@ export const calculateClusterInsights = () => {
 
     return {
       cluster: cluster as BehavioralCluster,
-      studentCount: data.students.length,
+      employeeCount: data.students.length,
       strugglingConcepts: topStruggles,
       avgEngagement: Math.random() * 40 + 60,
     };
   });
 };
+
+// Backward compatibility aliases (deprecated - use new names)
+export const mockCourses = mockTrainingPrograms;
+export const mockLectures = mockTrainingSessions;
+export const mockStudents = mockEmployees;
+export const transformInstructorLectures = transformTrainerTrainingSessions;
+export const enrichLecturesWithMockData = enrichTrainingSessionsWithMockData;

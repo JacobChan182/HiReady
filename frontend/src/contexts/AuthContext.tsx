@@ -28,7 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: userData.id,
           pseudonymId: userData.pseudonymId,
           role: userData.role,
-          courseIds: userData.courseIds || [],
+          trainingProgramIds: userData.trainingProgramIds || [],
           cluster: userData.cluster as BehavioralCluster | undefined,
           createdAt: new Date(userData.createdAt),
         };
@@ -52,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: userData.id,
           pseudonymId: userData.pseudonymId,
           role: userData.role,
-          courseIds: userData.courseIds || [],
+          trainingProgramIds: userData.trainingProgramIds || [],
           cluster: userData.cluster as BehavioralCluster | undefined,
           createdAt: new Date(userData.createdAt),
         };

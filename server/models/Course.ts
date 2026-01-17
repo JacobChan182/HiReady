@@ -1,54 +1,54 @@
 import mongoose, { Schema } from 'mongoose';
 import { IRewindEvent } from './RewindEvent';
 
-export interface ILecture {
-  lectureId: string;
-  lectureTitle: string;
-  courseId: string;
+export interface ITrainingSession {
+  trainingSessionId: string;
+  trainingSessionTitle: string;
+  trainingProgramId: string;
   videoUrl?: string;
   createdAt: Date;
-  studentRewindEvents: Array<{
-    studentId: string;
-    studentPseudonymId: string;
+  employeeRewindEvents: Array<{
+    employeeId: string;
+    employeePseudonymId: string;
     rewindEvents: IRewindEvent[];
   }>;
 }
 
-export interface ICourse {
-  courseId: string; // Unique course ID (e.g., "CS 4820")
-  courseName: string;
-  instructorId: string;
-  lectures: ILecture[];
+export interface ITrainingProgram {
+  trainingProgramId: string; // Unique training program ID (e.g., "SAFETY-101")
+  trainingProgramName: string;
+  trainerId: string;
+  trainingSessions: ITrainingSession[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-const StudentRewindEventsSchema = new Schema({
-  studentId: { type: String, required: true },
-  studentPseudonymId: { type: String, required: true },
+const EmployeeRewindEventsSchema = new Schema({
+  employeeId: { type: String, required: true },
+  employeePseudonymId: { type: String, required: true },
   rewindEvents: { type: [Schema.Types.Mixed], default: [] },
 });
 
-const LectureSchema = new Schema<ILecture>({
-  lectureId: { type: String, required: true }, // Not unique - same lectureId can exist in different courses
-  lectureTitle: { type: String, required: true },
-  courseId: { type: String, required: true },
+const TrainingSessionSchema = new Schema<ITrainingSession>({
+  trainingSessionId: { type: String, required: true }, // Not unique - same trainingSessionId can exist in different training programs
+  trainingSessionTitle: { type: String, required: true },
+  trainingProgramId: { type: String, required: true },
   videoUrl: { type: String },
   createdAt: { type: Date, default: Date.now },
-  studentRewindEvents: { type: [StudentRewindEventsSchema], default: [] },
+  employeeRewindEvents: { type: [EmployeeRewindEventsSchema], default: [] },
 }, { _id: false }); // Disable _id for subdocuments
 
-const CourseSchema = new Schema<ICourse>({
-  courseId: { type: String, required: true, unique: true },
-  courseName: { type: String, required: true },
-  instructorId: { type: String, required: true },
-  lectures: { type: [LectureSchema], default: [] },
+const TrainingProgramSchema = new Schema<ITrainingProgram>({
+  trainingProgramId: { type: String, required: true, unique: true },
+  trainingProgramName: { type: String, required: true },
+  trainerId: { type: String, required: true },
+  trainingSessions: { type: [TrainingSessionSchema], default: [] },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
 
-CourseSchema.pre('save', function() {
+TrainingProgramSchema.pre('save', function() {
   this.updatedAt = new Date();
 });
 
-export const Course = mongoose.model<ICourse>('Course', CourseSchema);
+export const TrainingProgram = mongoose.model<ITrainingProgram>('TrainingProgram', TrainingProgramSchema);

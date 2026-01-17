@@ -11,23 +11,23 @@ import { useAuth } from '@/contexts/AuthContext';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 interface UploadVideoProps {
-  courseId: string;
-  onUploadComplete?: (lectureId: string, videoUrl: string) => void;
+  trainingProgramId: string;
+  onUploadComplete?: (trainingSessionId: string, videoUrl: string) => void;
 }
 
-const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
+const UploadVideo = ({ trainingProgramId, onUploadComplete }: UploadVideoProps) => {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [lectureTitle, setLectureTitle] = useState('');
+  const [trainingSessionTitle, setTrainingSessionTitle] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const generateLectureId = () => {
-    return `lecture-${Date.now()}`;
+  const generateTrainingSessionId = () => {
+    return `training-session-${Date.now()}`;
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,10 +50,10 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
       setFile(selectedFile);
       setError(null);
       
-      // Auto-fill lecture title from filename if empty
-      if (!lectureTitle) {
+      // Auto-fill training session title from filename if empty
+      if (!trainingSessionTitle) {
         const filenameWithoutExt = selectedFile.name.replace(/\.[^/.]+$/, '');
-        setLectureTitle(filenameWithoutExt);
+        setTrainingSessionTitle(filenameWithoutExt);
       }
     }
   };
@@ -64,8 +64,8 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
       return;
     }
 
-    if (!lectureTitle.trim()) {
-      setError('Please enter a lecture title.');
+    if (!trainingSessionTitle.trim()) {
+      setError('Please enter a training session title.');
       return;
     }
 
@@ -74,7 +74,7 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
     setUploadProgress(0);
 
     try {
-      const lectureId = generateLectureId();
+      const trainingSessionId = generateTrainingSessionId();
 
       // Upload file directly to our server, which then uploads to R2 (avoids CORS)
       const uploadResponse = await fetch(`${API_URL}/upload/direct`, {
@@ -82,7 +82,7 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
         headers: {
           'Content-Type': file.type,
           'X-User-Id': user.id,
-          'X-Lecture-Id': lectureId,
+          'X-Training-Session-Id': trainingSessionId,
           'X-Filename': file.name,
         },
         body: file,
@@ -104,7 +104,7 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
       const uploadResult = await uploadResponse.json();
       const { key, videoUrl } = uploadResult.data;
 
-      // Save video metadata to lecture
+      // Save video metadata to training session
       const completeResponse = await fetch(`${API_URL}/upload/complete`, {
         method: 'POST',
         headers: {
@@ -112,10 +112,10 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
         },
         body: JSON.stringify({
           userId: user.id,
-          lectureId,
+          trainingSessionId,
           videoKey: key,
-          lectureTitle: lectureTitle.trim(),
-          courseId,
+          trainingSessionTitle: trainingSessionTitle.trim(),
+          trainingProgramId,
         }),
       });
 
@@ -129,7 +129,7 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
       
       // Call callback if provided
       if (onUploadComplete) {
-        onUploadComplete(lectureId, videoUrl);
+        onUploadComplete(trainingSessionId, videoUrl);
       }
 
       // Reset form after 2 seconds
@@ -151,7 +151,7 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
     if (!isUploading) {
       setIsOpen(false);
       setFile(null);
-      setLectureTitle('');
+      setTrainingSessionTitle('');
       setError(null);
       setSuccess(false);
       setUploadProgress(0);
@@ -189,7 +189,7 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
             >
               <Card className="glass-card p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold">Upload Lecture Video</h2>
+                  <h2 className="text-xl font-semibold">Upload Training Session Video</h2>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -238,14 +238,14 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
                     </div>
                   </div>
 
-                  {/* Lecture Title */}
+                  {/* Training Session Title */}
                   <div className="space-y-2">
-                    <Label htmlFor="lecture-title">Lecture Title</Label>
+                    <Label htmlFor="training-session-title">Training Session Title</Label>
                     <Input
-                      id="lecture-title"
-                      placeholder="e.g., Introduction to Neural Networks"
-                      value={lectureTitle}
-                      onChange={(e) => setLectureTitle(e.target.value)}
+                      id="training-session-title"
+                      placeholder="e.g., Workplace Safety Basics"
+                      value={trainingSessionTitle}
+                      onChange={(e) => setTrainingSessionTitle(e.target.value)}
                       disabled={isUploading}
                     />
                   </div>
@@ -304,7 +304,7 @@ const UploadVideo = ({ courseId, onUploadComplete }: UploadVideoProps) => {
                     </Button>
                     <Button
                       onClick={handleUpload}
-                      disabled={!file || !lectureTitle.trim() || isUploading}
+                      disabled={!file || !trainingSessionTitle.trim() || isUploading}
                       className="flex-1 gradient-bg"
                     >
                       {isUploading ? (

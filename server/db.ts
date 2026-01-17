@@ -10,6 +10,44 @@ export const connectDB = async () => {
     await mongoose.connect(MONGODB_URI);
     console.log('✅ MongoDB Atlas connected successfully');
     
+    // Migrate user roles from old to new terminology
+    try {
+      const { User } = await import('./models/User');
+      const studentResult = await User.updateMany(
+        { role: 'student' },
+        { $set: { role: 'employee' } }
+      );
+      const instructorResult = await User.updateMany(
+        { role: 'instructor' },
+        { $set: { role: 'trainer' } }
+      );
+      const totalMigrated = studentResult.modifiedCount + instructorResult.modifiedCount;
+      if (totalMigrated > 0) {
+        console.log(`✅ Migrated ${totalMigrated} user roles from old to new terminology`);
+      }
+    } catch (error) {
+      console.warn('Warning migrating user roles:', error);
+    }
+
+    // Migrate login event roles from old to new terminology
+    try {
+      const { Login } = await import('./models/Login');
+      const loginStudentResult = await Login.updateMany(
+        { role: 'student' },
+        { $set: { role: 'employee' } }
+      );
+      const loginInstructorResult = await Login.updateMany(
+        { role: 'instructor' },
+        { $set: { role: 'trainer' } }
+      );
+      const totalLoginMigrated = loginStudentResult.modifiedCount + loginInstructorResult.modifiedCount;
+      if (totalLoginMigrated > 0) {
+        console.log(`✅ Migrated ${totalLoginMigrated} login event roles from old to new terminology`);
+      }
+    } catch (error) {
+      console.warn('Warning migrating login event roles:', error);
+    }
+
     // Clean up old indexes from Lecturer model migration
     try {
       const collection = mongoose.connection.collection('courses');

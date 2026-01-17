@@ -4,8 +4,8 @@ import { useAuth } from './AuthContext';
 import { trackRewindEvent } from '@/lib/api';
 
 interface AnalyticsContextType {
-  trackEvent: (eventType: EventType, lectureId: string, conceptId?: string, metadata?: Record<string, unknown>) => void;
-  trackRewind: (lectureId: string, lectureTitle: string, courseId: string, rewindData: {
+  trackEvent: (eventType: EventType, trainingSessionId: string, conceptId?: string, metadata?: Record<string, unknown>) => void;
+  trackRewind: (trainingSessionId: string, trainingSessionTitle: string, trainingProgramId: string, rewindData: {
     fromTime: number;
     toTime: number;
     rewindAmount: number;
@@ -24,9 +24,9 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [events, setEvents] = useState<AnalyticsEvent[]>([]);
 
   const trackRewind = useCallback(async (
-    lectureId: string,
-    lectureTitle: string,
-    courseId: string,
+    trainingSessionId: string,
+    trainingSessionTitle: string,
+    trainingProgramId: string,
     rewindData: {
       fromTime: number;
       toTime: number;
@@ -57,9 +57,9 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       await trackRewindEvent(
         user.id,
         user.pseudonymId,
-        lectureId,
-        lectureTitle,
-        courseId,
+        trainingSessionId,
+        trainingSessionTitle,
+        trainingProgramId,
         rewindEvent
       );
       
@@ -67,8 +67,8 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const event: AnalyticsEvent = {
         id: rewindEvent.id,
         userId: user.id,
-        courseId,
-        lectureId,
+        trainingProgramId,
+        trainingSessionId,
         conceptId: rewindData.toConceptId,
         eventType: 'rewind' as EventType,
         timestamp: rewindEvent.timestamp,
@@ -91,8 +91,8 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const event: AnalyticsEvent = {
         id: rewindEvent.id,
         userId: user.id,
-        courseId,
-        lectureId,
+        trainingProgramId,
+        trainingSessionId,
         conceptId: rewindData.toConceptId,
         eventType: 'rewind' as EventType,
         timestamp: rewindEvent.timestamp,
@@ -109,7 +109,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const trackEvent = useCallback((
     eventType: EventType,
-    lectureId: string,
+    trainingSessionId: string,
     conceptId?: string,
     metadata?: Record<string, unknown>
   ) => {
@@ -118,8 +118,8 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const event: AnalyticsEvent = {
       id: `event-${Date.now()}`,
       userId: user.id,
-      courseId: user.courseIds[0],
-      lectureId,
+      trainingProgramId: user.trainingProgramIds[0],
+      trainingSessionId,
       conceptId,
       eventType,
       timestamp: Date.now(),
@@ -131,10 +131,10 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // Log other events (not rewind - those are handled by trackRewind)
     if (eventType !== 'rewind') {
-      console.log('[EduPulse Analytics]', {
+      console.log('[NoMoreTears Analytics]', {
         event: eventType,
         user: user.pseudonymId,
-        lecture: lectureId,
+        trainingSession: trainingSessionId,
         concept: conceptId,
         ...metadata,
       });

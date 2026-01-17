@@ -1,70 +1,70 @@
 import express, { Request, Response } from 'express';
-import { Lecturer } from '../models/Lecturer';
+import { Trainer } from '../models/Lecturer';
 
 const router = express.Router();
 
-// Create or update lecturer with a lecture
-router.post('/:userId/lectures', async (req: Request, res: Response) => {
+// Create or update trainer with a training session
+router.post('/:userId/training-sessions', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    const { lectureId, lectureTitle, courseId } = req.body;
+    const { trainingSessionId, trainingSessionTitle, trainingProgramId } = req.body;
 
-    if (!lectureId || !lectureTitle || !courseId) {
+    if (!trainingSessionId || !trainingSessionTitle || !trainingProgramId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    let lecturer = await Lecturer.findOne({ userId });
+    let trainer = await Trainer.findOne({ userId });
 
-    if (!lecturer) {
-      lecturer = new Lecturer({
+    if (!trainer) {
+      trainer = new Trainer({
         userId,
-        lectures: [{
-          lectureId,
-          lectureTitle,
-          courseId,
+        trainingSessions: [{
+          trainingSessionId,
+          trainingSessionTitle,
+          trainingProgramId,
           createdAt: new Date(),
-          studentRewindEvents: [],
+          employeeRewindEvents: [],
         }],
       });
     } else {
-      // Check if lecture already exists
-      const existingLecture = lecturer.lectures.find(l => l.lectureId === lectureId);
+      // Check if training session already exists
+      const existingTrainingSession = trainer.trainingSessions.find(ts => ts.trainingSessionId === trainingSessionId);
       
-      if (!existingLecture) {
-        lecturer.lectures.push({
-          lectureId,
-          lectureTitle,
-          courseId,
+      if (!existingTrainingSession) {
+        trainer.trainingSessions.push({
+          trainingSessionId,
+          trainingSessionTitle,
+          trainingProgramId,
           createdAt: new Date(),
-          studentRewindEvents: [],
+          employeeRewindEvents: [],
         });
       }
     }
 
-    await lecturer.save();
+    await trainer.save();
 
-    res.status(200).json({ success: true, data: lecturer });
+    res.status(200).json({ success: true, data: trainer });
   } catch (error) {
-    console.error('Error updating lecturer lectures:', error);
-    res.status(500).json({ error: 'Failed to update lecturer lectures' });
+    console.error('Error updating trainer training sessions:', error);
+    res.status(500).json({ error: 'Failed to update trainer training sessions' });
   }
 });
 
-// Get lecturer data
+// Get trainer data
 router.get('/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
 
-    const lecturer = await Lecturer.findOne({ userId });
+    const trainer = await Trainer.findOne({ userId });
 
-    if (!lecturer) {
-      return res.status(404).json({ error: 'Lecturer not found' });
+    if (!trainer) {
+      return res.status(404).json({ error: 'Trainer not found' });
     }
 
-    res.status(200).json({ success: true, data: lecturer });
+    res.status(200).json({ success: true, data: trainer });
   } catch (error) {
-    console.error('Error fetching lecturer data:', error);
-    res.status(500).json({ error: 'Failed to fetch lecturer data' });
+    console.error('Error fetching trainer data:', error);
+    res.status(500).json({ error: 'Failed to fetch trainer data' });
   }
 });
 

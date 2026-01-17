@@ -4,9 +4,9 @@ import bcrypt from 'bcrypt';
 export interface IUser {
   email: string;
   password: string;
-  role: 'student' | 'instructor';
+  role: 'employee' | 'trainer';
   pseudonymId: string;
-  courseIds: string[];
+  trainingProgramIds: string[];
   cluster?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -16,9 +16,9 @@ export interface IUser {
 const UserSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['student', 'instructor'], required: true },
+  role: { type: String, enum: ['employee', 'trainer'], required: true },
   pseudonymId: { type: String, required: true, unique: true },
-  courseIds: { type: [String], default: [] },
+  trainingProgramIds: { type: [String], default: [] },
   cluster: { type: String },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

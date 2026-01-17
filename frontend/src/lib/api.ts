@@ -1,7 +1,7 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 // Sign up
-export const signup = async (email: string, password: string, role: 'student' | 'instructor') => {
+export const signup = async (email: string, password: string, role: 'employee' | 'trainer') => {
   try {
     const response = await fetch(`${API_URL}/auth/signup`, {
       method: 'POST',
@@ -24,7 +24,7 @@ export const signup = async (email: string, password: string, role: 'student' | 
 };
 
 // Sign in
-export const signin = async (email: string, password: string, role: 'student' | 'instructor') => {
+export const signin = async (email: string, password: string, role: 'employee' | 'trainer') => {
   try {
     const response = await fetch(`${API_URL}/auth/signin`, {
       method: 'POST',
@@ -50,9 +50,9 @@ export const signin = async (email: string, password: string, role: 'student' | 
 export const trackRewindEvent = async (
   userId: string,
   pseudonymId: string,
-  lectureId: string,
-  lectureTitle: string,
-  courseId: string,
+  trainingSessionId: string,
+  trainingSessionTitle: string,
+  trainingProgramId: string,
   rewindEvent: {
     id: string;
     fromTime: number;
@@ -75,9 +75,9 @@ export const trackRewindEvent = async (
       body: JSON.stringify({
         userId,
         pseudonymId,
-        lectureId,
-        lectureTitle,
-        courseId,
+        trainingSessionId,
+        trainingSessionTitle,
+        trainingProgramId,
         rewindEvent,
       }),
     });
@@ -97,7 +97,7 @@ export const trackRewindEvent = async (
 export const trackLoginEvent = async (
   userId: string,
   pseudonymId: string,
-  role: 'student' | 'instructor',
+  role: 'employee' | 'trainer',
   action: 'signin' | 'signup'
 ) => {
   try {
@@ -126,10 +126,10 @@ export const trackLoginEvent = async (
   }
 };
 
-// Get instructor courses and lectures
-export const getInstructorLectures = async (instructorId: string) => {
+// Get trainer training programs and training sessions
+export const getTrainerTrainingSessions = async (trainerId: string) => {
   try {
-    const response = await fetch(`${API_URL}/courses/instructor/${instructorId}/lectures`, {
+    const response = await fetch(`${API_URL}/courses/trainer/${trainerId}/training-sessions`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -138,21 +138,21 @@ export const getInstructorLectures = async (instructorId: string) => {
 
     if (!response.ok) {
       if (response.status === 404) {
-        // No courses found, return empty data
-        return { success: true, data: { lectures: [], courses: [] } };
+        // No training programs found, return empty data
+        return { success: true, data: { trainingSessions: [], trainingPrograms: [] } };
       }
-      throw new Error('Failed to fetch instructor lectures');
+      throw new Error('Failed to fetch trainer training sessions');
     }
 
     return await response.json();
   } catch (error) {
-    console.error('Error fetching instructor lectures:', error);
+    console.error('Error fetching trainer training sessions:', error);
     throw error;
   }
 };
 
-// Create a new course
-export const createCourse = async (courseId: string, courseName: string, instructorId: string) => {
+// Create a new training program
+export const createTrainingProgram = async (trainingProgramId: string, trainingProgramName: string, trainerId: string) => {
   try {
     const response = await fetch(`${API_URL}/courses`, {
       method: 'POST',
@@ -160,28 +160,28 @@ export const createCourse = async (courseId: string, courseName: string, instruc
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        courseId,
-        courseName,
-        instructorId,
+        trainingProgramId,
+        trainingProgramName,
+        trainerId,
       }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || 'Failed to create course');
+      throw new Error(error.error || 'Failed to create training program');
     }
 
     return await response.json();
   } catch (error) {
-    console.error('Error creating course:', error);
+    console.error('Error creating training program:', error);
     throw error;
   }
 };
 
-// Get all courses for an instructor
-export const getInstructorCourses = async (instructorId: string) => {
+// Get all training programs for a trainer
+export const getTrainerTrainingPrograms = async (trainerId: string) => {
   try {
-    const response = await fetch(`${API_URL}/courses/instructor/${instructorId}`, {
+    const response = await fetch(`${API_URL}/courses/trainer/${trainerId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -192,12 +192,12 @@ export const getInstructorCourses = async (instructorId: string) => {
       if (response.status === 404) {
         return { success: true, data: [] };
       }
-      throw new Error('Failed to fetch courses');
+      throw new Error('Failed to fetch training programs');
     }
 
     return await response.json();
   } catch (error) {
-    console.error('Error fetching courses:', error);
+    console.error('Error fetching training programs:', error);
     throw error;
   }
 };

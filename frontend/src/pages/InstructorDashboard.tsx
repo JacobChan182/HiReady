@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { mockLectures, mockCourses, calculateConceptInsights, calculateClusterInsights, mockStudents, transformInstructorLectures, enrichLecturesWithMockData } from '@/data/mockData';
-import { getInstructorLectures, createCourse } from '@/lib/api';
-import { Lecture } from '@/types';
+import { getTrainerTrainingSessions, createTrainingProgram } from '@/lib/api';
+import { TrainingSession } from '@/types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell, Legend
@@ -31,79 +31,84 @@ const CHART_COLORS = [
 
 const InstructorDashboard = () => {
   const { user, logout } = useAuth();
-  const [lectures, setLectures] = useState<Lecture[]>(mockLectures);
-  const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null);
-  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [lectures, setLectures] = useState<TrainingSession[]>(mockLectures || []);
+  const [selectedLecture, setSelectedLecture] = useState<TrainingSession | null>(mockLectures && mockLectures.length > 0 ? mockLectures[0] : null);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(mockLectures && mockLectures.length > 0 ? mockLectures[0].trainingProgramId : null);
   const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false);
   const [newCourseCode, setNewCourseCode] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
-  const [courses, setCourses] = useState(mockCourses);
+  const [courses, setCourses] = useState(mockCourses || []);
   const [isLoadingLectures, setIsLoadingLectures] = useState(true);
 
-  // Fetch real lecture data from API
+  // Debug logging
+  useEffect(() => {
+    console.log('InstructorDashboard rendered', { user, lectures: lectures.length, courses: courses.length, selectedLecture, selectedCourseId });
+  }, [user, lectures, courses, selectedLecture, selectedCourseId]);
+
+  // Fetch real training session data from API
   useEffect(() => {
     const fetchLectures = async () => {
-      if (!user || user.role !== 'instructor') {
+      if (!user || user.role !== 'trainer') {
         setIsLoadingLectures(false);
         return;
       }
 
       try {
         setIsLoadingLectures(true);
-        const response = await getInstructorLectures(user.id);
+        const response = await getTrainerTrainingSessions(user.id);
         
         if (response.success && response.data) {
-          const { lectures: transformedLectures, courses: apiCourses } = transformInstructorLectures(response);
-          const enrichedLectures = enrichLecturesWithMockData(transformedLectures);
+          const { trainingSessions: transformedTrainingSessions, trainingPrograms: apiTrainingPrograms } = transformInstructorLectures(response);
+          const enrichedTrainingSessions = enrichLecturesWithMockData(transformedTrainingSessions);
           
-          // Update courses from API
-          if (apiCourses && apiCourses.length > 0) {
-            const updatedCourses = apiCourses.map((apiCourse: any) => ({
-              id: apiCourse.courseId,
-              name: apiCourse.courseName,
-              code: apiCourse.courseId,
-              instructorId: apiCourse.instructorId,
-              lectureIds: apiCourse.lectures?.map((l: any) => l.lectureId) || [],
+          // Update training programs from API
+          if (apiTrainingPrograms && apiTrainingPrograms.length > 0) {
+            const updatedCourses = apiTrainingPrograms.map((apiTrainingProgram: any) => ({
+              id: apiTrainingProgram.trainingProgramId,
+              name: apiTrainingProgram.trainingProgramName,
+              code: apiTrainingProgram.trainingProgramId,
+              instructorId: apiTrainingProgram.trainerId,
+              lectureIds: apiTrainingProgram.trainingSessions?.map((ts: any) => ts.trainingSessionId) || [],
             }));
             setCourses(updatedCourses);
             
-            // Set first course as selected if no course is selected
+            // Set first training program as selected if none is selected
             if (!selectedCourseId && updatedCourses.length > 0) {
               setSelectedCourseId(updatedCourses[0].id);
             }
           }
           
-          if (enrichedLectures.length > 0) {
-            setLectures(enrichedLectures);
-            // Select first lecture of the selected course, or first lecture overall
-            const courseLectures = selectedCourseId 
-              ? enrichedLectures.filter(l => l.courseId === selectedCourseId)
-              : enrichedLectures;
-            if (courseLectures.length > 0) {
-              setSelectedLecture(courseLectures[0]);
+          if (enrichedTrainingSessions.length > 0) {
+            setLectures(enrichedTrainingSessions);
+            // Select first training session of the selected training program, or first training session overall
+            const courseTrainingSessions = selectedCourseId 
+              ? enrichedTrainingSessions.filter(ts => ts.trainingProgramId === selectedCourseId)
+              : enrichedTrainingSessions;
+            if (courseTrainingSessions.length > 0) {
+              setSelectedLecture(courseTrainingSessions[0]);
             } else {
-              setSelectedLecture(enrichedLectures[0]);
+              setSelectedLecture(enrichedTrainingSessions[0]);
             }
           } else {
-            // No lectures found
+            // No training sessions found
             setLectures([]);
             setSelectedLecture(null);
           }
         } else {
-          // No course data, use mock data
+          // No training program data, use mock data
           setLectures(mockLectures);
           if (mockLectures.length > 0) {
             setSelectedLecture(mockLectures[0]);
-            setSelectedCourseId(mockLectures[0].courseId);
+            setSelectedCourseId(mockLectures[0].trainingProgramId);
           }
         }
       } catch (error) {
-        console.error('Failed to fetch instructor lectures, using mock data:', error);
+        console.error('Failed to fetch trainer training sessions, using mock data:', error);
         // Fallback to mock data
         setLectures(mockLectures);
         if (mockLectures.length > 0) {
           setSelectedLecture(mockLectures[0]);
-          setSelectedCourseId(mockLectures[0].courseId);
+          setSelectedCourseId(mockLectures[0].trainingProgramId);
         }
       } finally {
         setIsLoadingLectures(false);
@@ -128,7 +133,7 @@ const InstructorDashboard = () => {
   const course = selectedCourseId 
     ? courses.find(c => c.id === selectedCourseId)
     : selectedLecture 
-      ? courses.find(c => c.id === selectedLecture.courseId)
+      ? courses.find(c => c.id === selectedLecture.trainingProgramId)
       : courses.length > 0 
         ? courses[0] 
         : null;
@@ -137,7 +142,7 @@ const InstructorDashboard = () => {
     setSelectedCourseId(courseId);
     const newCourse = courses.find(c => c.id === courseId);
     if (newCourse && newCourse.lectureIds.length > 0) {
-      const firstLecture = lectures.find(l => l.courseId === courseId);
+      const firstLecture = lectures.find(l => l.trainingProgramId === courseId);
       if (firstLecture) {
         setSelectedLecture(firstLecture);
       } else {
@@ -156,7 +161,7 @@ const InstructorDashboard = () => {
 
     try {
       // Create course in database
-      await createCourse(newCourseCode.trim(), newCourseName.trim(), user.id);
+      await createTrainingProgram(newCourseCode.trim(), newCourseName.trim(), user.id);
       
       // Update local state
       const newCourse = {
@@ -191,7 +196,7 @@ const InstructorDashboard = () => {
   };
 
   // Prepare chart data
-  const struggleChartData = selectedLecture
+  const struggleChartData = selectedLecture && selectedLecture.concepts
     ? conceptInsights
         .filter(c => selectedLecture.concepts.find(lc => lc.id === c.conceptId))
         .map(insight => ({
@@ -207,17 +212,17 @@ const InstructorDashboard = () => {
 
   const clusterChartData = clusterInsights.map(cluster => ({
     name: cluster.cluster.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-    students: cluster.studentCount,
+    students: cluster.employeeCount,
     engagement: Math.round(cluster.avgEngagement),
   }));
 
   const clusterPieData = clusterInsights.map(cluster => ({
     name: cluster.cluster.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-    value: cluster.studentCount,
+    value: cluster.employeeCount,
   }));
 
   // Timeline data for drop-off visualization
-  const timelineData = selectedLecture ? selectedLecture.concepts.map(concept => {
+  const timelineData = selectedLecture && selectedLecture.concepts ? selectedLecture.concepts.map(concept => {
     const insight = conceptInsights.find(i => i.conceptId === concept.id);
     return {
       name: concept.name.substring(0, 10) + '...',
@@ -266,6 +271,17 @@ const InstructorDashboard = () => {
           </div>
         ) : (
           <>
+            {/* Show message if no courses exist */}
+            {courses.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground mb-4">No training programs yet</p>
+                <Button onClick={() => setIsCourseDialogOpen(true)} className="gradient-bg">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Training Program
+                </Button>
+              </div>
+            )}
+            
             {/* Course Header - Always show if course exists */}
             {course && (
               <motion.div
@@ -285,7 +301,7 @@ const InstructorDashboard = () => {
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     {lectures
-                      .filter(lecture => lecture.courseId === course.id)
+                      .filter(lecture => lecture.trainingProgramId === course.id)
                       .map(lecture => (
                         <Button
                           key={lecture.id}
@@ -298,24 +314,24 @@ const InstructorDashboard = () => {
                         </Button>
                       ))}
                     <UploadVideo 
-                      courseId={course.id}
-                      onUploadComplete={(lectureId, videoUrl) => {
-                        console.log('Upload complete:', lectureId, videoUrl);
-                        // Refresh lectures after upload
+                      trainingProgramId={course.id}
+                      onUploadComplete={(trainingSessionId, videoUrl) => {
+                        console.log('Upload complete:', trainingSessionId, videoUrl);
+                        // Refresh training sessions after upload
                         if (user) {
-                          getInstructorLectures(user.id)
+                          getTrainerTrainingSessions(user.id)
                             .then(response => {
                               if (response.success && response.data) {
-                                const { lectures: transformedLectures } = transformInstructorLectures(response);
-                                const enrichedLectures = enrichLecturesWithMockData(transformedLectures);
-                                setLectures(enrichedLectures);
-                                if (enrichedLectures.length > 0 && !selectedLecture) {
-                                  setSelectedLecture(enrichedLectures[0]);
+                                const { trainingSessions: transformedTrainingSessions } = transformInstructorLectures(response);
+                                const enrichedTrainingSessions = enrichLecturesWithMockData(transformedTrainingSessions);
+                                setLectures(enrichedTrainingSessions);
+                                if (enrichedTrainingSessions.length > 0 && !selectedLecture) {
+                                  setSelectedLecture(enrichedTrainingSessions[0]);
                                 }
                               }
                             })
                             .catch(error => {
-                              console.error('Failed to refresh lectures:', error);
+                              console.error('Failed to refresh training sessions:', error);
                             });
                         }
                       }}
@@ -326,7 +342,7 @@ const InstructorDashboard = () => {
             )}
 
             {/* Show message if no lectures but course exists */}
-            {course && !selectedLecture && lectures.filter(l => l.courseId === course.id).length === 0 && (
+            {course && !selectedLecture && lectures.filter(l => l.trainingProgramId === course.id).length === 0 && (
               <div className="text-center py-12">
                 <p className="text-muted-foreground mb-4">No lectures available for this course yet</p>
                 <p className="text-sm text-muted-foreground">Use the Upload Video button above to add your first lecture</p>
@@ -596,7 +612,7 @@ const InstructorDashboard = () => {
                           {cluster.cluster.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                         </span>
                         <Badge variant="outline" className="ml-auto">
-                          {cluster.studentCount} students
+                          {cluster.employeeCount} employees
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mb-2">Struggling with:</p>

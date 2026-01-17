@@ -26,7 +26,7 @@ const StudentDashboard = () => {
   const [showSummary, setShowSummary] = useState(false);
   const [activeConcept, setActiveConcept] = useState<Concept | null>(null);
 
-  const course = mockCourses.find(c => c.id === selectedLecture.courseId);
+  const course = mockCourses.find(c => c.id === selectedLecture.trainingProgramId);
 
   // Reset previous time when lecture changes
   useEffect(() => {

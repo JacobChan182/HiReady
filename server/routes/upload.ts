@@ -3,18 +3,18 @@ import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import axios from 'axios';
 import { s3Client, BUCKET_NAME, generateVideoKey, getVideoUrl } from '../utils/r2';
-import { Lecturer } from '../models/Lecturer';
-import { Course } from '../models/Course';
+import { Trainer } from '../models/Lecturer';
+import { TrainingProgram } from '../models/Course';
 
 const router = express.Router();
 
 // 1. Generate presigned URL for video upload
 router.post('/presigned-url', async (req: Request, res: Response) => {
   try {
-    const { userId, lectureId, filename, contentType } = req.body;
+    const { userId, trainingSessionId, filename, contentType } = req.body;
 
-    if (!userId || !lectureId || !filename) {
-      return res.status(400).json({ error: 'Missing required fields: userId, lectureId, filename' });
+    if (!userId || !trainingSessionId || !filename) {
+      return res.status(400).json({ error: 'Missing required fields: userId, trainingSessionId, filename' });
     }
 
     if (!BUCKET_NAME) {
@@ -28,7 +28,7 @@ router.post('/presigned-url', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid file type. Only video files are allowed.' });
     }
 
-    const key = generateVideoKey(userId, lectureId, filename);
+    const key = generateVideoKey(userId, trainingSessionId, filename);
 
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
@@ -53,19 +53,19 @@ router.post('/presigned-url', async (req: Request, res: Response) => {
 // 2. Complete upload - Update Lecturer, Course, and Trigger Indexing
 router.post('/complete', async (req: Request, res: Response) => {
   try {
-    const { userId, lectureId, videoKey, lectureTitle, courseId } = req.body;
+    const { userId, trainingSessionId, videoKey, trainingSessionTitle, trainingProgramId } = req.body;
 
-    if (!userId || !lectureId || !videoKey || !courseId) {
-      return res.status(400).json({ error: 'Missing required fields (userId, lectureId, videoKey, courseId)' });
+    if (!userId || !trainingSessionId || !videoKey || !trainingProgramId) {
+      return res.status(400).json({ error: 'Missing required fields (userId, trainingSessionId, videoKey, trainingProgramId)' });
     }
 
-    // A. Verify Course and Permissions
-    const course = await Course.findOne({ courseId });
-    if (!course) {
-      return res.status(404).json({ error: `Course ${courseId} not found.` });
+    // A. Verify TrainingProgram and Permissions
+    const trainingProgram = await TrainingProgram.findOne({ trainingProgramId });
+    if (!trainingProgram) {
+      return res.status(404).json({ error: `Training program ${trainingProgramId} not found.` });
     }
-    if (course.instructorId !== userId) {
-      return res.status(403).json({ error: 'Permission denied: You do not own this course' });
+    if (trainingProgram.trainerId !== userId) {
+      return res.status(403).json({ error: 'Permission denied: You do not own this training program' });
     }
 
     // B. Generate signed URL for Twelve Labs (Flask) access
@@ -76,7 +76,7 @@ router.post('/complete', async (req: Request, res: Response) => {
     try {
       await axios.post('http://127.0.0.1:5000/api/index-video', {
         videoUrl: signedDownloadUrl,
-        lectureId: lectureId
+        trainingSessionId: trainingSessionId
       });
       console.log('Twelve Labs indexing triggered via Flask.');
     } catch (flaskError: any) {
@@ -84,41 +84,41 @@ router.post('/complete', async (req: Request, res: Response) => {
     }
 
     const videoUrl = getVideoUrl(videoKey);
-    const lectureData = {
-      lectureId,
-      lectureTitle: lectureTitle || 'Untitled Lecture',
-      courseId,
+    const trainingSessionData = {
+      trainingSessionId,
+      trainingSessionTitle: trainingSessionTitle || 'Untitled Training Session',
+      trainingProgramId,
       videoUrl,
       createdAt: new Date(),
-      studentRewindEvents: [],
+      employeeRewindEvents: [],
     };
 
-    // D. Update Course Model
-    const courseLectureIndex = course.lectures.findIndex(l => l.lectureId === lectureId);
-    if (courseLectureIndex > -1) {
-      course.lectures[courseLectureIndex].videoUrl = videoUrl;
+    // D. Update TrainingProgram Model
+    const trainingProgramSessionIndex = trainingProgram.trainingSessions.findIndex(ts => ts.trainingSessionId === trainingSessionId);
+    if (trainingProgramSessionIndex > -1) {
+      trainingProgram.trainingSessions[trainingProgramSessionIndex].videoUrl = videoUrl;
     } else {
-      course.lectures.push(lectureData);
+      trainingProgram.trainingSessions.push(trainingSessionData);
     }
-    await course.save();
+    await trainingProgram.save();
 
-    // E. Update Lecturer Model
-    let lecturer = await Lecturer.findOne({ userId });
-    if (!lecturer) {
-      lecturer = new Lecturer({ userId, lectures: [] });
+    // E. Update Trainer Model
+    let trainer = await Trainer.findOne({ userId });
+    if (!trainer) {
+      trainer = new Trainer({ userId, trainingSessions: [] });
     }
-    const lecturerLectureIndex = lecturer.lectures.findIndex(l => l.lectureId === lectureId);
-    if (lecturerLectureIndex > -1) {
-      lecturer.lectures[lecturerLectureIndex].videoUrl = videoUrl;
+    const trainerSessionIndex = trainer.trainingSessions.findIndex(ts => ts.trainingSessionId === trainingSessionId);
+    if (trainerSessionIndex > -1) {
+      trainer.trainingSessions[trainerSessionIndex].videoUrl = videoUrl;
     } else {
-      lecturer.lectures.push(lectureData);
+      trainer.trainingSessions.push(trainingSessionData);
     }
-    await lecturer.save();
+    await trainer.save();
 
     res.status(200).json({
       success: true,
       message: 'Video upload and metadata synchronization completed',
-      data: { lectureId, videoUrl },
+      data: { trainingSessionId, videoUrl },
     });
   } catch (error) {
     console.error('Error completing upload:', error);
@@ -130,15 +130,15 @@ router.post('/complete', async (req: Request, res: Response) => {
 router.post('/direct', async (req: Request, res: Response) => {
   try {
     const userId = req.headers['x-user-id'] as string;
-    const lectureId = req.headers['x-lecture-id'] as string;
+    const trainingSessionId = req.headers['x-training-session-id'] as string;
     const filename = req.headers['x-filename'] as string;
     const contentType = req.headers['content-type'] || 'video/mp4';
 
-    if (!userId || !lectureId || !filename) {
+    if (!userId || !trainingSessionId || !filename) {
       return res.status(400).json({ error: 'Missing required headers' });
     }
 
-    const key = generateVideoKey(userId, lectureId, filename);
+    const key = generateVideoKey(userId, trainingSessionId, filename);
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
@@ -150,7 +150,7 @@ router.post('/direct', async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      data: { key, videoUrl: getVideoUrl(key), lectureId },
+      data: { key, videoUrl: getVideoUrl(key), trainingSessionId },
     });
   } catch (error) {
     console.error('Direct upload failed:', error);

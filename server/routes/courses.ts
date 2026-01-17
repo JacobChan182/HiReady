@@ -1,35 +1,35 @@
 import express, { Request, Response } from 'express';
-import { Course } from '../models/Course';
+import { TrainingProgram } from '../models/Course';
 
 const router = express.Router();
 
-// Create a new course
+// Create a new training program
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { courseId, courseName, instructorId } = req.body;
+    const { trainingProgramId, trainingProgramName, trainerId } = req.body;
 
-    if (!courseId || !courseName || !instructorId) {
-      return res.status(400).json({ error: 'Missing required fields: courseId, courseName, instructorId' });
+    if (!trainingProgramId || !trainingProgramName || !trainerId) {
+      return res.status(400).json({ error: 'Missing required fields: trainingProgramId, trainingProgramName, trainerId' });
     }
 
-    // Check if course already exists
-    const existingCourse = await Course.findOne({ courseId });
-    if (existingCourse) {
-      return res.status(409).json({ error: 'Course with this ID already exists' });
+    // Check if training program already exists
+    const existingTrainingProgram = await TrainingProgram.findOne({ trainingProgramId });
+    if (existingTrainingProgram) {
+      return res.status(409).json({ error: 'Training program with this ID already exists' });
     }
 
-    const newCourse = new Course({
-      courseId,
-      courseName,
-      instructorId,
-      lectures: [],
+    const newTrainingProgram = new TrainingProgram({
+      trainingProgramId,
+      trainingProgramName,
+      trainerId,
+      trainingSessions: [],
     });
 
-    await newCourse.save();
+    await newTrainingProgram.save();
 
-    res.status(201).json({ success: true, data: newCourse });
+    res.status(201).json({ success: true, data: newTrainingProgram });
   } catch (error: any) {
-    console.error('Error creating course:', error);
+    console.error('Error creating training program:', error);
     
     // Handle duplicate key error for old userId index
     if (error.code === 11000 && error.keyPattern?.userId) {
@@ -40,122 +40,122 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
     
-    // Handle duplicate key error for old lectures.lectureId index
-    if (error.code === 11000 && error.keyPattern?.['lectures.lectureId']) {
-      console.error('⚠️  Old lectures.lectureId index detected. Please restart the server to clean up indexes.');
+    // Handle duplicate key error for old trainingSessions.trainingSessionId index
+    if (error.code === 11000 && error.keyPattern?.['trainingSessions.trainingSessionId']) {
+      console.error('⚠️  Old trainingSessions.trainingSessionId index detected. Please restart the server to clean up indexes.');
       return res.status(500).json({ 
         error: 'Database index conflict. Please restart the server to fix this issue.',
-        details: 'The database has an old index on lectures.lectureId that needs to be removed. Restarting the server will automatically fix this.'
+        details: 'The database has an old index on trainingSessions.trainingSessionId that needs to be removed. Restarting the server will automatically fix this.'
       });
     }
     
-    // Handle duplicate courseId error
-    if (error.code === 11000 && error.keyPattern?.courseId) {
-      return res.status(409).json({ error: 'Course with this ID already exists' });
+    // Handle duplicate trainingProgramId error
+    if (error.code === 11000 && error.keyPattern?.trainingProgramId) {
+      return res.status(409).json({ error: 'Training program with this ID already exists' });
     }
     
-    res.status(500).json({ error: 'Failed to create course' });
+    res.status(500).json({ error: 'Failed to create training program' });
   }
 });
 
-// Get all courses for an instructor
-router.get('/instructor/:instructorId', async (req: Request, res: Response) => {
+// Get all training programs for a trainer
+router.get('/trainer/:trainerId', async (req: Request, res: Response) => {
   try {
-    const { instructorId } = req.params;
+    const { trainerId } = req.params;
 
-    const courses = await Course.find({ instructorId });
+    const trainingPrograms = await TrainingProgram.find({ trainerId });
 
-    res.status(200).json({ success: true, data: courses });
+    res.status(200).json({ success: true, data: trainingPrograms });
   } catch (error) {
-    console.error('Error fetching courses:', error);
-    res.status(500).json({ error: 'Failed to fetch courses' });
+    console.error('Error fetching training programs:', error);
+    res.status(500).json({ error: 'Failed to fetch training programs' });
   }
 });
 
-// Get a specific course by courseId
-router.get('/:courseId', async (req: Request, res: Response) => {
+// Get a specific training program by trainingProgramId
+router.get('/:trainingProgramId', async (req: Request, res: Response) => {
   try {
-    const { courseId } = req.params;
+    const { trainingProgramId } = req.params;
 
-    const course = await Course.findOne({ courseId });
+    const trainingProgram = await TrainingProgram.findOne({ trainingProgramId });
 
-    if (!course) {
-      return res.status(404).json({ error: 'Course not found' });
+    if (!trainingProgram) {
+      return res.status(404).json({ error: 'Training program not found' });
     }
 
-    res.status(200).json({ success: true, data: course });
+    res.status(200).json({ success: true, data: trainingProgram });
   } catch (error) {
-    console.error('Error fetching course:', error);
-    res.status(500).json({ error: 'Failed to fetch course' });
+    console.error('Error fetching training program:', error);
+    res.status(500).json({ error: 'Failed to fetch training program' });
   }
 });
 
-// Add a lecture to a course
-router.post('/:courseId/lectures', async (req: Request, res: Response) => {
+// Add a training session to a training program
+router.post('/:trainingProgramId/training-sessions', async (req: Request, res: Response) => {
   try {
-    const courseId = Array.isArray(req.params.courseId) 
-      ? req.params.courseId[0] 
-      : req.params.courseId;
-    const { lectureId, lectureTitle, videoUrl } = req.body;
+    const trainingProgramId = Array.isArray(req.params.trainingProgramId) 
+      ? req.params.trainingProgramId[0] 
+      : req.params.trainingProgramId;
+    const { trainingSessionId, trainingSessionTitle, videoUrl } = req.body;
 
-    if (!lectureId || !lectureTitle) {
-      return res.status(400).json({ error: 'Missing required fields: lectureId, lectureTitle' });
+    if (!trainingSessionId || !trainingSessionTitle) {
+      return res.status(400).json({ error: 'Missing required fields: trainingSessionId, trainingSessionTitle' });
     }
 
-    let course = await Course.findOne({ courseId });
+    let trainingProgram = await TrainingProgram.findOne({ trainingProgramId });
 
-    if (!course) {
-      return res.status(404).json({ error: 'Course not found' });
+    if (!trainingProgram) {
+      return res.status(404).json({ error: 'Training program not found' });
     }
 
-    // Check if lecture already exists
-    const existingLecture = course.lectures.find(l => l.lectureId === lectureId);
+    // Check if training session already exists
+    const existingTrainingSession = trainingProgram.trainingSessions.find(ts => ts.trainingSessionId === trainingSessionId);
     
-    if (!existingLecture) {
-      course.lectures.push({
-        lectureId,
-        lectureTitle,
-        courseId,
+    if (!existingTrainingSession) {
+      trainingProgram.trainingSessions.push({
+        trainingSessionId,
+        trainingSessionTitle,
+        trainingProgramId,
         videoUrl: videoUrl || undefined,
         createdAt: new Date(),
-        studentRewindEvents: [],
+        employeeRewindEvents: [],
       });
-      await course.save();
+      await trainingProgram.save();
     }
 
-    res.status(200).json({ success: true, data: course });
+    res.status(200).json({ success: true, data: trainingProgram });
   } catch (error) {
-    console.error('Error adding lecture to course:', error);
-    res.status(500).json({ error: 'Failed to add lecture to course' });
+    console.error('Error adding training session to training program:', error);
+    res.status(500).json({ error: 'Failed to add training session to training program' });
   }
 });
 
-// Get all lectures for an instructor (aggregated from all their courses)
-router.get('/instructor/:instructorId/lectures', async (req: Request, res: Response) => {
+// Get all training sessions for a trainer (aggregated from all their training programs)
+router.get('/trainer/:trainerId/training-sessions', async (req: Request, res: Response) => {
   try {
-    const instructorId = Array.isArray(req.params.instructorId) 
-      ? req.params.instructorId[0] 
-      : req.params.instructorId;
+    const trainerId = Array.isArray(req.params.trainerId) 
+      ? req.params.trainerId[0] 
+      : req.params.trainerId;
 
-    const courses = await Course.find({ instructorId });
+    const trainingPrograms = await TrainingProgram.find({ trainerId });
 
-    // Aggregate all lectures from all courses
-    const allLectures = courses.flatMap(course => 
-      course.lectures.map(lecture => ({
-        lectureId: lecture.lectureId,
-        lectureTitle: lecture.lectureTitle,
-        courseId: course.courseId,
-        videoUrl: lecture.videoUrl,
-        createdAt: lecture.createdAt,
-        studentRewindEvents: lecture.studentRewindEvents,
-        courseName: course.courseName,
+    // Aggregate all training sessions from all training programs
+    const allTrainingSessions = trainingPrograms.flatMap(trainingProgram => 
+      trainingProgram.trainingSessions.map(trainingSession => ({
+        trainingSessionId: trainingSession.trainingSessionId,
+        trainingSessionTitle: trainingSession.trainingSessionTitle,
+        trainingProgramId: trainingProgram.trainingProgramId,
+        videoUrl: trainingSession.videoUrl,
+        createdAt: trainingSession.createdAt,
+        employeeRewindEvents: trainingSession.employeeRewindEvents,
+        trainingProgramName: trainingProgram.trainingProgramName,
       }))
     );
 
-    res.status(200).json({ success: true, data: { lectures: allLectures, courses } });
+    res.status(200).json({ success: true, data: { trainingSessions: allTrainingSessions, trainingPrograms } });
   } catch (error) {
-    console.error('Error fetching instructor lectures:', error);
-    res.status(500).json({ error: 'Failed to fetch instructor lectures' });
+    console.error('Error fetching trainer training sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch trainer training sessions' });
   }
 });
 

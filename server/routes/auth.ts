@@ -16,8 +16,8 @@ router.post('/signup', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email, password, and role are required' });
     }
 
-    if (!['student', 'instructor'].includes(role)) {
-      return res.status(400).json({ error: 'Role must be either "student" or "instructor"' });
+    if (!['employee', 'trainer'].includes(role)) {
+      return res.status(400).json({ error: 'Role must be either "employee" or "trainer"' });
     }
 
     // Check if user already exists
@@ -35,8 +35,8 @@ router.post('/signup', async (req: Request, res: Response) => {
       password,
       role,
       pseudonymId,
-      courseIds: ['course-1', 'course-2'], // Default courses
-      cluster: role === 'student' ? clusters[Math.floor(Math.random() * clusters.length)] : undefined,
+      trainingProgramIds: ['training-program-1', 'training-program-2'], // Default training programs
+      cluster: role === 'employee' ? clusters[Math.floor(Math.random() * clusters.length)] : undefined,
     });
 
     await newUser.save();
@@ -64,7 +64,7 @@ router.post('/signup', async (req: Request, res: Response) => {
       email: newUser.email,
       role: newUser.role,
       pseudonymId: newUser.pseudonymId,
-      courseIds: newUser.courseIds,
+      trainingProgramIds: newUser.trainingProgramIds,
       cluster: newUser.cluster,
       createdAt: newUser.createdAt,
     };
@@ -89,8 +89,8 @@ router.post('/signin', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email, password, and role are required' });
     }
 
-    if (!['student', 'instructor'].includes(role)) {
-      return res.status(400).json({ error: 'Role must be either "student" or "instructor"' });
+    if (!['employee', 'trainer'].includes(role)) {
+      return res.status(400).json({ error: 'Role must be either "employee" or "trainer"' });
     }
 
     // Find user by email
@@ -135,7 +135,7 @@ router.post('/signin', async (req: Request, res: Response) => {
       email: user.email,
       role: user.role,
       pseudonymId: user.pseudonymId,
-      courseIds: user.courseIds,
+      trainingProgramIds: user.trainingProgramIds,
       cluster: user.cluster,
       createdAt: user.createdAt,
     };

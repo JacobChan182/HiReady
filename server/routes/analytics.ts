@@ -1,112 +1,112 @@
 import express, { Request, Response } from 'express';
-import { Student } from '../models/Student';
-import { Course } from '../models/Course';
+import { Employee } from '../models/Student';
+import { TrainingProgram } from '../models/Course';
 
 const router = express.Router();
 
-// Track rewind event for a student
+// Track rewind event for an employee
 router.post('/rewind', async (req: Request, res: Response) => {
   try {
     const {
       userId,
       pseudonymId,
-      lectureId,
-      lectureTitle,
-      courseId,
+      trainingSessionId,
+      trainingSessionTitle,
+      trainingProgramId,
       rewindEvent,
     } = req.body;
 
-    if (!userId || !lectureId || !rewindEvent) {
+    if (!userId || !trainingSessionId || !rewindEvent) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Update Student collection
-    const student = await Student.findOne({ userId });
+    // Update Employee collection
+    const employee = await Employee.findOne({ userId });
     
-    if (!student) {
-      // Create new student if doesn't exist
-      const newStudent = new Student({
+    if (!employee) {
+      // Create new employee if doesn't exist
+      const newEmployee = new Employee({
         userId,
         pseudonymId,
-        courseIds: [courseId],
-        lectures: [{
-          lectureId,
-          lectureTitle,
-          courseId,
+        trainingProgramIds: [trainingProgramId],
+        trainingSessions: [{
+          trainingSessionId,
+          trainingSessionTitle,
+          trainingProgramId,
           assignedAt: new Date(),
           rewindEvents: [rewindEvent],
           lastAccessedAt: new Date(),
         }],
       });
-      await newStudent.save();
+      await newEmployee.save();
     } else {
-      // Update existing student
-      const lectureProgress = student.lectures.find(l => l.lectureId === lectureId);
+      // Update existing employee
+      const trainingSessionProgress = employee.trainingSessions.find(ts => ts.trainingSessionId === trainingSessionId);
       
-      if (!lectureProgress) {
-        // Add new lecture assignment
-        student.lectures.push({
-          lectureId,
-          lectureTitle,
-          courseId,
+      if (!trainingSessionProgress) {
+        // Add new training session assignment
+        employee.trainingSessions.push({
+          trainingSessionId,
+          trainingSessionTitle,
+          trainingProgramId,
           assignedAt: new Date(),
           rewindEvents: [rewindEvent],
           lastAccessedAt: new Date(),
         });
       } else {
-        // Add rewind event to existing lecture
-        lectureProgress.rewindEvents.push(rewindEvent);
-        lectureProgress.lastAccessedAt = new Date();
+        // Add rewind event to existing training session
+        trainingSessionProgress.rewindEvents.push(rewindEvent);
+        trainingSessionProgress.lastAccessedAt = new Date();
       }
       
-      await student.save();
+      await employee.save();
     }
 
-    // Update Course collection
-    // Find course by courseId
-    let course = await Course.findOne({ courseId });
+    // Update TrainingProgram collection
+    // Find training program by trainingProgramId
+    let trainingProgram = await TrainingProgram.findOne({ trainingProgramId });
     
-    if (!course) {
-      // Course doesn't exist - this shouldn't happen if courses are created properly
-      // But we'll log it and continue (student data is already saved)
-      console.warn(`Course ${courseId} not found when tracking rewind event`);
+    if (!trainingProgram) {
+      // Training program doesn't exist - this shouldn't happen if training programs are created properly
+      // But we'll log it and continue (employee data is already saved)
+      console.warn(`Training program ${trainingProgramId} not found when tracking rewind event`);
     } else {
-      // Find lecture within the course
-      let lecture = course.lectures.find(l => l.lectureId === lectureId);
+      // Find training session within the training program
+      let trainingSession = trainingProgram.trainingSessions.find(ts => ts.trainingSessionId === trainingSessionId);
       
-      if (!lecture) {
-        // Lecture doesn't exist in course - add it
-        course.lectures.push({
-          lectureId,
-          lectureTitle,
-          courseId,
+      if (!trainingSession) {
+        // Training session doesn't exist in training program - add it
+        trainingProgram.trainingSessions.push({
+          trainingSessionId,
+          trainingSessionTitle,
+          trainingProgramId,
           createdAt: new Date(),
-          studentRewindEvents: [{
-            studentId: userId,
-            studentPseudonymId: pseudonymId,
+          employeeRewindEvents: [{
+            employeeId: userId,
+            employeePseudonymId: pseudonymId,
             rewindEvents: [rewindEvent],
           }],
         });
-        await course.save();
+        await trainingProgram.save();
       } else {
-        // Lecture exists, add rewind event
-        let studentRewindData = lecture.studentRewindEvents.find(
-          s => s.studentId === userId
+        // Training session exists, add rewind event
+        let employeeRewindData = trainingSession.employeeRewindEvents.find(
+          e => e.employeeId === userId
         );
         
-        if (!studentRewindData) {
-          // Add new student to lecture
-          lecture.studentRewindEvents.push({
-            studentId: userId,
-            studentPseudonymId: pseudonymId,
+        if (!employeeRewindData) {
+          // Add new employee to training session
+          trainingSession.employeeRewindEvents.push({
+            employeeId: userId,
+            employeePseudonymId: pseudonymId,
             rewindEvents: [rewindEvent],
           });
         } else {
-          // Add rewind event to existing student
-          studentRewindData.rewindEvents.push(rewindEvent);
+          // Add rewind event to existing employee
+          employeeRewindData.rewindEvents.push(rewindEvent);
         }
         
-        await course.save();
+        await trainingProgram.save();
       }
     }
 

@@ -10,7 +10,7 @@ const Index = () => {
     return <Login />;
   }
 
-  if (user.role === 'instructor') {
+  if (user.role === 'trainer') {
     return <InstructorDashboard />;
   }
 

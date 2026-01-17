@@ -67,18 +67,18 @@ const Login = () => {
 
   const roles = [
     {
-      id: 'student' as UserRole,
-      title: 'Student',
-      description: 'Access lectures, track progress, and get personalized insights',
+      id: 'employee' as UserRole,
+      title: 'Employee',
+      description: 'Access training sessions, track progress, and get personalized insights',
       icon: GraduationCap,
-      features: ['Watch lecture videos', 'Search by concept', 'Get catch-up summaries'],
+      features: ['Watch training videos', 'Search by concept', 'Get catch-up summaries'],
     },
     {
-      id: 'instructor' as UserRole,
-      title: 'Instructor',
-      description: 'View aggregated class analytics and identify learning friction',
+      id: 'trainer' as UserRole,
+      title: 'Trainer',
+      description: 'View aggregated training analytics and identify learning friction',
       icon: Users,
-      features: ['Class-wide analytics', 'Concept difficulty insights', 'Behavioral clusters'],
+      features: ['Training-wide analytics', 'Concept difficulty insights', 'Behavioral clusters'],
     },
   ];
 
@@ -105,11 +105,11 @@ const Login = () => {
               <Zap className="w-7 h-7 text-primary-foreground" />
             </div>
             <span className="text-3xl font-bold text-white">
-              Edu<span className="gradient-text">Pulse</span>.tech
+              NoMore<span className="gradient-text">Tears</span>
             </span>
           </motion.div>
           <p className="text-slate-400 text-lg max-w-md mx-auto">
-            Identity-aware learning analytics powered by AI video intelligence
+            Workplace training analytics powered by AI video intelligence
           </p>
         </div>
 
@@ -122,7 +122,7 @@ const Login = () => {
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
             <Lock className="w-4 h-4 text-slate-400" />
-            <span className="text-sm text-slate-400">Blackboard LMS Integration</span>
+            <span className="text-sm text-slate-400">HR Training Platform</span>
           </div>
         </motion.div>
 

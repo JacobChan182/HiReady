@@ -3,7 +3,7 @@ import mongoose, { Schema } from 'mongoose';
 export interface ILogin {
   userId: string;
   pseudonymId: string;
-  role: 'student' | 'instructor';
+  role: 'employee' | 'trainer';
   action: 'signin' | 'signup';
   timestamp: Date;
   ipAddress?: string;
@@ -13,7 +13,7 @@ export interface ILogin {
 const LoginSchema = new Schema<ILogin>({
   userId: { type: String, required: true },
   pseudonymId: { type: String, required: true },
-  role: { type: String, enum: ['student', 'instructor'], required: true },
+  role: { type: String, enum: ['employee', 'trainer'], required: true },
   action: { type: String, enum: ['signin', 'signup'], required: true },
   timestamp: { type: Date, default: Date.now },
   ipAddress: { type: String },

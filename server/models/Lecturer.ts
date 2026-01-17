@@ -1,50 +1,50 @@
 import mongoose, { Schema } from 'mongoose';
 import { IRewindEvent } from './RewindEvent';
 
-export interface ILecture {
-  lectureId: string;
-  lectureTitle: string;
-  courseId: string;
+export interface ITrainingSession {
+  trainingSessionId: string;
+  trainingSessionTitle: string;
+  trainingProgramId: string;
   videoUrl?: string;
   createdAt: Date;
-  studentRewindEvents: Array<{
-    studentId: string;
-    studentPseudonymId: string;
+  employeeRewindEvents: Array<{
+    employeeId: string;
+    employeePseudonymId: string;
     rewindEvents: IRewindEvent[];
   }>;
 }
 
-export interface ILecturer {
+export interface ITrainer {
   userId: string;
-  lectures: ILecture[];
+  trainingSessions: ITrainingSession[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-const StudentRewindEventsSchema = new Schema({
-  studentId: { type: String, required: true },
-  studentPseudonymId: { type: String, required: true },
+const EmployeeRewindEventsSchema = new Schema({
+  employeeId: { type: String, required: true },
+  employeePseudonymId: { type: String, required: true },
   rewindEvents: { type: [Schema.Types.Mixed], default: [] },
 });
 
-const LectureSchema = new Schema<ILecture>({
-  lectureId: { type: String, required: true, unique: true },
-  lectureTitle: { type: String, required: true },
-  courseId: { type: String, required: true },
+const TrainingSessionSchema = new Schema<ITrainingSession>({
+  trainingSessionId: { type: String, required: true, unique: true },
+  trainingSessionTitle: { type: String, required: true },
+  trainingProgramId: { type: String, required: true },
   videoUrl: { type: String },
   createdAt: { type: Date, default: Date.now },
-  studentRewindEvents: { type: [StudentRewindEventsSchema], default: [] },
+  employeeRewindEvents: { type: [EmployeeRewindEventsSchema], default: [] },
 });
 
-const LecturerSchema = new Schema<ILecturer>({
+const TrainerSchema = new Schema<ITrainer>({
   userId: { type: String, required: true, unique: true },
-  lectures: { type: [LectureSchema], default: [] },
+  trainingSessions: { type: [TrainingSessionSchema], default: [] },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
 
-LecturerSchema.pre('save', function(this: ILecturer) {
+TrainerSchema.pre('save', function(this: ITrainer) {
   this.updatedAt = new Date();
 });
 
-export const Lecturer = mongoose.model<ILecturer>('Lecturer', LecturerSchema);
+export const Trainer = mongoose.model<ITrainer>('Trainer', TrainerSchema);

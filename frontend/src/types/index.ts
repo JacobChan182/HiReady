@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'instructor';
+export type UserRole = 'employee' | 'trainer';
 
 export type BehavioralCluster = 'high-replay' | 'fast-watcher' | 'note-taker' | 'late-night-learner' | 'steady-pacer';
 
@@ -6,17 +6,17 @@ export interface User {
   id: string;
   pseudonymId: string;
   role: UserRole;
-  courseIds: string[];
+  trainingProgramIds: string[];
   cluster?: BehavioralCluster;
   createdAt: Date;
 }
 
-export interface Course {
+export interface TrainingProgram {
   id: string;
   name: string;
   code: string;
-  instructorId: string;
-  lectureIds: string[];
+  trainerId: string;
+  trainingSessionIds: string[];
 }
 
 export interface Concept {
@@ -25,13 +25,13 @@ export interface Concept {
   summary: string;
   startTime: number;
   endTime: number;
-  lectureId: string;
+  trainingSessionId: string;
 }
 
-export interface Lecture {
+export interface TrainingSession {
   id: string;
   title: string;
-  courseId: string;
+  trainingProgramId: string;
   videoUrl: string;
   duration: number;
   concepts: Concept[];
@@ -43,8 +43,8 @@ export type EventType = 'play' | 'pause' | 'replay' | 'seek' | 'rewind' | 'drop-
 export interface AnalyticsEvent {
   id: string;
   userId: string;
-  courseId: string;
-  lectureId: string;
+  trainingProgramId: string;
+  trainingSessionId: string;
   conceptId?: string;
   eventType: EventType;
   timestamp: number;
@@ -63,7 +63,7 @@ export interface ConceptInsight {
 
 export interface ClusterInsight {
   cluster: BehavioralCluster;
-  studentCount: number;
+  employeeCount: number;
   strugglingConcepts: string[];
   avgEngagement: number;
 }
