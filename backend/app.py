@@ -65,22 +65,26 @@ def create_app():
                 "timestamp": datetime.utcnow()
             })
 
-        assistant = asyncio.run(client.create_assistant(
-            name="NoMoreTears Assistant",
-            system_prompt="You are a helpful educational assistant that helps students understand their lectures better"
-        ))
-        thread = asyncio.run(client.create_thread(assistant.assistant_id))
+        # Run all async operations in a single event loop
+        async def run_chat():
+            assistant = await client.create_assistant(
+                name="NoMoreTears Assistant",
+                description="A helpful educational assistant that helps students understand their lectures better"
+            )
+            thread = await client.create_thread(assistant.assistant_id)
 
-        # Send message with memory="Auto" to enable persistent context
-        response = asyncio.run(client.add_message(
-            thread_id=thread.thread_id,
-            content=user_message,
-            llm_provider=provider,
-            model_name=model,
-            memory="Auto",
-            stream=False
-        ))
+            response = await client.add_message(
+                thread_id=thread.thread_id,
+                content=user_message,
+                llm_provider=provider,
+                model_name=model,
+                memory="Auto",
+                stream=False
+            )
+            
+            return assistant, thread, response
 
+        assistant, thread, response = asyncio.run(run_chat())
         ai_response = response.content
 
         # Save AI response to MongoDB
@@ -91,15 +95,15 @@ def create_app():
                 "content": ai_response,
                 "provider": provider,
                 "model": model,
-                "assistant_id": assistant.assistant_id,
-                "thread_id": thread.thread_id,
+                "assistant_id": str(assistant.assistant_id),
+                "thread_id": str(thread.thread_id),
                 "timestamp": datetime.utcnow()
             })
 
         return jsonify({
             "response": ai_response,
-            "assistant_id": assistant.assistant_id,
-            "thread_id": thread.thread_id
+            "assistant_id": str(assistant.assistant_id),
+            "thread_id": str(thread.thread_id)
         })
 
     @app.get('/api/backboard/chat/history/<user_id>')
@@ -161,7 +165,7 @@ def create_app():
 
         assistant = asyncio.run(client.create_assistant(
             name="Video Analysis Assistant",
-            system_prompt="You are an expert educational video analyst. Analyze student engagement patterns to identify difficult sections and provide actionable insights.",
+            description="An expert educational video analyst that analyzes student engagement patterns to identify difficult sections and provide actionable insights",
             tools=tools
         ))
         thread = asyncio.run(client.create_thread(assistant.assistant_id))
@@ -236,8 +240,8 @@ Use the get_video_rewind_data tool to fetch student interaction data, then analy
         
         video_id = data.get("video_id")
         video_title = data.get("video_title", "")
-        topics = data.get("topics", [])  # Segmented topics from TwelveLabs
-        content_type = data.get("content_type", "quiz")  # "quiz", "summary", "help"
+        topics = data.get("topics", [])
+        content_type = data.get("content_type", "quiz")
         
         if not video_id or not topics:
             return {"status": "error", "message": "video_id and topics are required"}, 400
@@ -246,7 +250,6 @@ Use the get_video_rewind_data tool to fetch student interaction data, then analy
         if not api_key:
             return {"status": "error", "message": "Missing BACKBOARD_API_KEY env var"}, 500
 
-        # Build prompt based on content type
         if content_type == "quiz":
             system_prompt = "You are an expert educational content creator. Generate practice quiz questions based on video topics."
             task = "Generate 3-5 multiple choice quiz questions for each topic. Include answers and explanations."
@@ -281,7 +284,7 @@ Task: {task}
         # Create assistant for content generation
         assistant = asyncio.run(client.create_assistant(
             name="Educational Content Generator",
-            system_prompt=system_prompt
+            description=system_prompt
         ))
         thread = asyncio.run(client.create_thread(assistant.assistant_id))
 
