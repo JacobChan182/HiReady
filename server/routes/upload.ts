@@ -1,8 +1,13 @@
 import express, { Request, Response } from 'express';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client, BUCKET_NAME, generateVideoKey, getVideoUrl } from '../utils/r2';
+<<<<<<< HEAD
 import { Course } from '../models/Course';
+=======
+import { Lecturer } from '../models/Lecturer';
+import axios from 'axios';
+>>>>>>> kate
 
 const router = express.Router();
 
@@ -65,14 +70,28 @@ router.post('/presigned-url', async (req: Request, res: Response) => {
 router.post('/complete', async (req: Request, res: Response) => {
   try {
     const { userId, lectureId, videoKey, lectureTitle, courseId } = req.body;
-
+    
     if (!userId || !lectureId || !videoKey) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+<<<<<<< HEAD
     if (!courseId) {
       return res.status(400).json({ error: 'courseId is required' });
     }
+=======
+    // This gives Twelve Labs permission to read the file from your private R2 bucket
+    const downloadCommand = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: videoKey,
+    });
+    
+    const signedDownloadUrl = await getSignedUrl(s3Client, downloadCommand, { expiresIn: 3600 });
+    console.log('Generated Signed URL for Twelve Labs:', signedDownloadUrl);
+
+    // Get or create lecturer
+    let lecturer = await Lecturer.findOne({ userId });
+>>>>>>> kate
 
     // Find course by courseId
     let course = await Course.findOne({ courseId });
@@ -88,6 +107,17 @@ router.post('/complete', async (req: Request, res: Response) => {
 
     // Get public URL for the video
     const videoUrl = getVideoUrl(videoKey);
+
+    try {
+      await axios.post('http://127.0.0.1:5000/api/index-video', {
+        videoUrl: signedDownloadUrl,
+        lectureId: lectureId
+      });
+      console.log('Successfully notified Flask to start indexing.');
+    } catch (flaskError) {
+      console.error('Failed to notify Flask:', flaskError.message);
+      // We don't necessarily want to fail the whole upload if the AI trigger fails
+    }
 
     // Find or create the lecture
     let lecture = course.lectures.find(l => l.lectureId === lectureId);
