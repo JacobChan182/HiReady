@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client, BUCKET_NAME, generateVideoKey, getVideoUrl } from '../utils/r2';
-import { Lecturer } from '../models/Lecturer';
+import { Course } from '../models/Course';
 
 const router = express.Router();
 
@@ -70,38 +70,44 @@ router.post('/complete', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Get or create lecturer
-    let lecturer = await Lecturer.findOne({ userId });
+    if (!courseId) {
+      return res.status(400).json({ error: 'courseId is required' });
+    }
 
-    if (!lecturer) {
-      lecturer = new Lecturer({
-        userId,
-        lectures: [],
-      });
+    // Find course by courseId
+    let course = await Course.findOne({ courseId });
+
+    if (!course) {
+      return res.status(404).json({ error: `Course ${courseId} not found. Please create the course first.` });
+    }
+
+    // Verify instructor owns this course
+    if (course.instructorId !== userId) {
+      return res.status(403).json({ error: 'You do not have permission to add lectures to this course' });
     }
 
     // Get public URL for the video
     const videoUrl = getVideoUrl(videoKey);
 
     // Find or create the lecture
-    const lecture = lecturer.lectures.find(l => l.lectureId === lectureId);
+    let lecture = course.lectures.find(l => l.lectureId === lectureId);
 
     if (lecture) {
       // Update existing lecture with video URL
       lecture.videoUrl = videoUrl;
     } else {
       // Create new lecture entry
-      lecturer.lectures.push({
+      course.lectures.push({
         lectureId,
         lectureTitle: lectureTitle || 'Untitled Lecture',
-        courseId: courseId || 'default-course',
+        courseId,
         videoUrl,
         createdAt: new Date(),
         studentRewindEvents: [],
       });
     }
 
-    await lecturer.save();
+    await course.save();
 
     res.status(200).json({
       success: true,

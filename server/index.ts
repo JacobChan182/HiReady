@@ -21,7 +21,7 @@ import connectDB from './db';
 import analyticsRoutes from './routes/analytics';
 import authRoutes from './routes/auth';
 import loginsRoutes from './routes/logins';
-import lecturersRoutes from './routes/lecturers';
+import coursesRoutes from './routes/courses';
 import studentsRoutes from './routes/students';
 import uploadRoutes from './routes/upload';
 
@@ -37,7 +37,7 @@ connectDB().catch(console.error);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/logins', loginsRoutes);
-app.use('/api/lecturers', lecturersRoutes);
+app.use('/api/courses', coursesRoutes);
 app.use('/api/students', studentsRoutes);
 // Apply raw body parser only to direct upload endpoint
 app.use('/api/upload/direct', express.raw({ type: 'video/*', limit: '500mb' }));
