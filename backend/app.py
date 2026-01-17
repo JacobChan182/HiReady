@@ -65,7 +65,6 @@ def create_app():
                 "timestamp": datetime.utcnow()
             })
 
-        # Create assistant and thread, then send the message with memory enabled
         assistant = asyncio.run(client.create_assistant(
             name="NoMoreTears Assistant",
             system_prompt="You are a helpful educational assistant that helps students understand their lectures better"
@@ -78,7 +77,7 @@ def create_app():
             content=user_message,
             llm_provider=provider,
             model_name=model,
-            memory="Auto",  # Enable memory across conversations
+            memory="Auto",
             stream=False
         ))
 
@@ -160,7 +159,6 @@ def create_app():
 
         client = BackboardClient(api_key=api_key)
 
-        # Create assistant with tools
         assistant = asyncio.run(client.create_assistant(
             name="Video Analysis Assistant",
             system_prompt="You are an expert educational video analyst. Analyze student engagement patterns to identify difficult sections and provide actionable insights.",
@@ -168,7 +166,6 @@ def create_app():
         ))
         thread = asyncio.run(client.create_thread(assistant.assistant_id))
 
-        # Send initial analysis request
         full_prompt = f"""
 {analysis_prompt}
 
