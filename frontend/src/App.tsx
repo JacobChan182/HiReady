@@ -13,7 +13,7 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <div>
-    <HealthCheck />
+    {/* <HealthCheck /> */}
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AnalyticsProvider>
