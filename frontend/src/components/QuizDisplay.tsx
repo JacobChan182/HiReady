@@ -31,36 +31,63 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
     const questions: QuizQuestion[] = [];
     const content = typeof quizContent === 'string' ? quizContent : JSON.stringify(quizContent);
     
-    const questionBlocks = content.split(/Question \d+:|####\s*Question \d+/i);
+    console.log('🔍 Parsing quiz content:', content.substring(0, 200));
     
-    questionBlocks.forEach((block) => {
-      if (!block.trim()) return;
+    // Split by question numbers (e.g., "1. **Question 1:**" or "**Question 1:**")
+    const questionBlocks = content.split(/\d+\.\s*\*\*Question\s+\d+:\*\*/i);
+    
+    questionBlocks.forEach((block, idx) => {
+      if (!block.trim() || idx === 0) return; // Skip empty blocks and preamble
+      
+      console.log(`📝 Processing block ${idx}:`, block.substring(0, 100));
       
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
       if (lines.length < 2) return;
 
-      const questionText = lines[0].replace(/^[:\s]+/, '');
+      // First non-empty line is the question
+      const questionText = lines[0].trim();
       const options: string[] = [];
       let correctAnswer = '';
 
-      lines.slice(1).forEach(line => {
-        if (/^[A-D][\):\.]/.test(line) || /^\d[\):\.]/.test(line)) {
+      // Process remaining lines
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Match options like "A) ...", "B) ...", etc.
+        if (/^[A-D]\)\s+/.test(line)) {
           options.push(line);
         }
-        if (/answer:/i.test(line) || /correct:/i.test(line)) {
-          correctAnswer = line.split(/answer:|correct:/i)[1]?.trim() || '';
+        
+        // Match answer like "**Answer:** C) ..."
+        if (/\*\*Answer:\*\*/i.test(line)) {
+          const answerMatch = line.match(/\*\*Answer:\*\*\s*([A-D])\)/i);
+          if (answerMatch) {
+            correctAnswer = answerMatch[1];
+          }
         }
-      });
+      }
 
-      if (questionText && options.length > 0) {
+      if (questionText && options.length > 0 && correctAnswer) {
         questions.push({
           question: questionText,
           options,
-          correctAnswer: correctAnswer || options[0],
+          correctAnswer,
+        });
+        console.log(`✅ Parsed question ${questions.length}:`, {
+          question: questionText.substring(0, 50),
+          optionCount: options.length,
+          correctAnswer
+        });
+      } else {
+        console.warn(`⚠️ Incomplete question data:`, {
+          hasQuestion: !!questionText,
+          optionCount: options.length,
+          hasAnswer: !!correctAnswer
         });
       }
     });
 
+    console.log(`📊 Total questions parsed: ${questions.length}`);
     return questions;
   };
 
@@ -94,7 +121,9 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
     let correct = 0;
     questions.forEach((q, idx) => {
       const userAnswer = selectedAnswers[idx];
-      if (userAnswer && userAnswer.includes(q.correctAnswer)) {
+      // Extract just the letter from the user's answer (e.g., "A) ..." -> "A")
+      const userLetter = userAnswer?.match(/^([A-D])\)/)?.[1];
+      if (userLetter === q.correctAnswer) {
         correct++;
       }
     });
@@ -140,7 +169,8 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
           <div className="space-y-4 mb-6">
             {questions.map((q, idx) => {
               const userAnswer = selectedAnswers[idx];
-              const isCorrect = userAnswer && userAnswer.includes(q.correctAnswer);
+              const userLetter = userAnswer?.match(/^([A-D])\)/)?.[1];
+              const isCorrect = userLetter === q.correctAnswer;
 
               return (
                 <div key={idx} className="p-4 rounded-lg bg-muted/50">
@@ -157,7 +187,7 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
                       </p>
                       {!isCorrect && (
                         <p className="text-sm text-green-600 dark:text-green-400">
-                          Correct answer: {q.correctAnswer}
+                          Correct answer: {q.options.find(opt => opt.startsWith(q.correctAnswer + ')'))}
                         </p>
                       )}
                     </div>
