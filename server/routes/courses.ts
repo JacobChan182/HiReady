@@ -203,6 +203,7 @@ router.get('/instructor/:instructorId/lectures', async (req: Request, res: Respo
         createdAt: lecture.createdAt,
         studentRewindEvents: lecture.studentRewindEvents,
         courseName: course.courseName,
+        rawAiMetaData: lecture.rawAiMetaData || {},
       }))
     );
 

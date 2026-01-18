@@ -133,15 +133,28 @@ export const transformInstructorLectures = (responseData: any): { lectures: Lect
   const allLectures = responseData.data.lectures || [];
   const courses = responseData.data.courses || [];
 
-  const transformedLectures: Lecture[] = allLectures.map((lecture: any) => ({
-    id: lecture.lectureId,
-    title: lecture.lectureTitle,
-    courseId: lecture.courseId,
-    videoUrl: lecture.videoUrl || '',
-    duration: 0,
-    concepts: [],
-    uploadedAt: lecture.createdAt ? new Date(lecture.createdAt) : new Date(),
-  }));
+  const transformedLectures: Lecture[] = allLectures.map((lecture: any) => {
+    // Extract segments from rawAiMetaData
+    const segments = lecture.rawAiMetaData?.segments || [];
+    const lectureSegments = segments.map((seg: any) => ({
+      start: seg.start || 0,
+      end: seg.end || 0,
+      title: seg.title || 'Untitled Segment',
+      summary: seg.summary || '',
+      count: seg.count || 0,
+    }));
+
+    return {
+      id: lecture.lectureId,
+      title: lecture.lectureTitle,
+      courseId: lecture.courseId,
+      videoUrl: lecture.videoUrl || '',
+      duration: 0,
+      concepts: [],
+      lectureSegments: lectureSegments.length > 0 ? lectureSegments : undefined,
+      uploadedAt: lecture.createdAt ? new Date(lecture.createdAt) : new Date(),
+    };
+  });
 
   return { lectures: transformedLectures, courses };
 };

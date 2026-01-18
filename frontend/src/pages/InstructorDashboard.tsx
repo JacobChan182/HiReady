@@ -706,6 +706,52 @@ const InstructorDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Segment Rewinds Chart */}
+            {selectedLecture?.lectureSegments && selectedLecture.lectureSegments.length > 0 && (
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart2 className="w-5 h-5 text-primary" />
+                    Segment Rewind Count
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={selectedLecture.lectureSegments.map((seg, index) => ({
+                      name: seg.title.length > 20 ? seg.title.substring(0, 20) + '...' : seg.title,
+                      fullName: seg.title,
+                      rewinds: seg.count || 0,
+                      index,
+                      time: `${Math.floor(seg.start / 60)}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}`,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="hsl(var(--muted-foreground))" 
+                        tick={{ fontSize: 11 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={100}
+                      />
+                      <YAxis stroke="hsl(var(--muted-foreground))" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        formatter={(value: any, name: any, props: any) => [
+                          `${value} rewind${value !== 1 ? 's' : ''}`,
+                          `Segment ${props.payload.index + 1}: ${props.payload.fullName}`
+                        ]}
+                      />
+                      <Bar dataKey="rewinds" fill={CHART_COLORS[2]} name="Rewinds" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Timeline Tab */}
