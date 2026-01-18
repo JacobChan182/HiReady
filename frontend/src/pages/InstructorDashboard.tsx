@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import UploadVideo from '@/components/UploadVideo';
+import VideoPlayer from '@/components/VideoPlayer';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -780,6 +781,45 @@ const InstructorDashboard = () => {
           ))}
         </div>
 
+        {/* Instructor Video Preview */}
+        <div className="grid lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2">
+            <VideoPlayer lecture={selectedLecture} course={course} disableTracking />
+          </div>
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                Friction Points
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {topStrugglingConcepts.map((concept, i) => (
+                <motion.div
+                  key={concept.conceptId}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="p-4 rounded-lg bg-muted/50"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-sm">{concept.conceptName}</span>
+                    <Badge 
+                      variant={concept.struggleScore > 60 ? 'destructive' : 'secondary'}
+                    >
+                      {Math.round(concept.struggleScore)}% struggle
+                    </Badge>
+                  </div>
+                  <div className="flex gap-4 text-xs text-muted-foreground">
+                    <span>{concept.replayCount} replays</span>
+                    <span>{concept.dropOffCount} drop-offs</span>
+                  </div>
+                </motion.div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Main Analytics */}
         <Tabs defaultValue="concepts" className="space-y-6">
           <TabsList className="glass-card p-1">
@@ -803,9 +843,8 @@ const InstructorDashboard = () => {
 
           {/* Concept Analysis Tab */}
           <TabsContent value="concepts" className="space-y-6">
-            <div className="grid lg:grid-cols-3 gap-6">
-              {/* Struggle Score Chart */}
-              <Card className="glass-card lg:col-span-2">
+            <div className="grid lg:grid-cols-2 gap-6">
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5 text-destructive" />
@@ -839,106 +878,71 @@ const InstructorDashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* Top Friction Points */}
-              <Card className="glass-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                    Top Friction Points
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {topStrugglingConcepts.map((concept, i) => (
-                    <motion.div
-                      key={concept.conceptId}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="p-4 rounded-lg bg-muted/50"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-sm">{concept.conceptName}</span>
-                        <Badge 
-                          variant={concept.struggleScore > 60 ? 'destructive' : 'secondary'}
-                        >
-                          {Math.round(concept.struggleScore)}% struggle
-                        </Badge>
-                      </div>
-                      <div className="flex gap-4 text-xs text-muted-foreground">
-                        <span>{concept.replayCount} replays</span>
-                        <span>{concept.dropOffCount} drop-offs</span>
-                      </div>
-                    </motion.div>
-                  ))}
-                </CardContent>
-              </Card>
+              {(() => {
+                const chartSegments =
+                  (segmentRewindData?.segments && segmentRewindData.segments.length > 0)
+                    ? segmentRewindData.segments
+                    : (selectedLecture?.lectureSegments || []);
+
+                if (chartSegments.length === 0) {
+                  return null;
+                }
+
+                return (
+                  <Card className="glass-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart2 className="w-5 h-5 text-primary" />
+                        Segment Rewind Count
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={350}>
+                        <BarChart data={chartSegments.map((seg, index) => {
+                          const count = seg.count ?? 0;
+                          return {
+                            name: seg.title.length > 20 ? seg.title.substring(0, 20) + '...' : seg.title,
+                            fullName: seg.title,
+                            rewinds: count,
+                            index,
+                            time: `${Math.floor(seg.start / 60)}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}`,
+                          };
+                        })}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis 
+                            dataKey="name" 
+                            stroke="hsl(var(--muted-foreground))" 
+                            tick={{ fontSize: 11 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={100}
+                          />
+                          <YAxis stroke="hsl(var(--muted-foreground))" />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                            }}
+                            formatter={(value: unknown, _name: unknown, props: unknown) => {
+                              const count = typeof value === 'number' ? value : Number(value);
+                              const payload = (props as { payload?: { index?: number; fullName?: string } })?.payload;
+                              const segmentIndex = payload?.index ?? 0;
+                              const fullName = payload?.fullName ?? '';
+                              return [
+                                `${Number.isFinite(count) ? count : value} rewind${count !== 1 ? 's' : ''}`,
+                                `Segment ${segmentIndex + 1}: ${fullName}`,
+                              ];
+                            }}
+                          />
+                          <Bar dataKey="rewinds" fill={CHART_COLORS[2]} name="Rewinds" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </div>
-
-            {/* Segment Rewinds Chart */}
-            {(() => {
-              const chartSegments =
-                (segmentRewindData?.segments && segmentRewindData.segments.length > 0)
-                  ? segmentRewindData.segments
-                  : (selectedLecture?.lectureSegments || []);
-
-              if (chartSegments.length === 0) {
-                return null;
-              }
-
-              return (
-                <Card className="glass-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart2 className="w-5 h-5 text-primary" />
-                      Segment Rewind Count
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={350}>
-                      <BarChart data={chartSegments.map((seg, index) => {
-                        const count = seg.count ?? 0;
-                        return {
-                          name: seg.title.length > 20 ? seg.title.substring(0, 20) + '...' : seg.title,
-                          fullName: seg.title,
-                          rewinds: count,
-                          index,
-                          time: `${Math.floor(seg.start / 60)}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}`,
-                        };
-                      })}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis 
-                          dataKey="name" 
-                          stroke="hsl(var(--muted-foreground))" 
-                          tick={{ fontSize: 11 }}
-                          angle={-45}
-                          textAnchor="end"
-                          height={100}
-                        />
-                        <YAxis stroke="hsl(var(--muted-foreground))" />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                          formatter={(value: unknown, _name: unknown, props: unknown) => {
-                            const count = typeof value === 'number' ? value : Number(value);
-                            const payload = (props as { payload?: { index?: number; fullName?: string } })?.payload;
-                            const segmentIndex = payload?.index ?? 0;
-                            const fullName = payload?.fullName ?? '';
-                            return [
-                              `${Number.isFinite(count) ? count : value} rewind${count !== 1 ? 's' : ''}`,
-                              `Segment ${segmentIndex + 1}: ${fullName}`,
-                            ];
-                          }}
-                        />
-                        <Bar dataKey="rewinds" fill={CHART_COLORS[2]} name="Rewinds" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              );
-            })()}
           </TabsContent>
 
           {/* Timeline Tab */}

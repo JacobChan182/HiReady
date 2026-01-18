@@ -12,15 +12,17 @@ import { Progress } from '@/components/ui/progress';
 interface VideoPlayerProps {
   lecture: Lecture;
   course: Course | null;
+  disableTracking?: boolean;
 }
 
 export interface VideoPlayerRef {
   jumpToConcept: (concept: Concept) => void;
 }
 
-const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, course }, ref) => {
+const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, course, disableTracking = false }, ref) => {
   const { trackEvent, trackRewind } = useAnalytics();
   const { user } = useAuth();
+  const shouldTrack = !disableTracking && user?.role !== 'instructor';
   const videoRef = useRef<HTMLVideoElement>(null);
   const previousTimeRef = useRef<number>(0);
   const isPlayingRef = useRef<boolean>(false);
@@ -201,7 +203,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
       const newTime = concept.startTime;
       
       // Track rewind if jumping backwards
-      if (newTime < previousTime && trackRewind && course) {
+      if (newTime < previousTime && trackRewind && course && shouldTrack) {
         const previousConcept = lecture.concepts.find(
           c => previousTime >= c.startTime && previousTime < c.endTime
         );
@@ -262,7 +264,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
         );
         
         // Track rewind event to MongoDB
-        if (trackRewind && course) {
+        if (trackRewind && course && shouldTrack) {
           trackRewind(
             lecture.id,
             lecture.title,
@@ -283,7 +285,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
       // Update watch progress every 5 seconds or when time jumps significantly
       const timeSinceLastUpdate = newTime - lastProgressUpdateRef.current;
       if (timeSinceLastUpdate >= 5 || Math.abs(newTime - previousTime) > 2) {
-        if (user && course) {
+        if (user && course && shouldTrack) {
           // Send watched timestamps array (convert Set to Array, limit to last 100 for efficiency)
           const watchedTimestampsArray = Array.from(watchedTimestampsRef.current)
             .sort((a, b) => a - b)
@@ -482,7 +484,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
                   setCurrentTime(newTime);
                   
                   // Track rewind if seeking backwards
-                  if (newTime < previousTime && trackRewind && course && lecture) {
+                  if (newTime < previousTime && trackRewind && course && lecture && shouldTrack) {
                     const previousConcept = lecture.concepts.find(
                       c => previousTime >= c.startTime && previousTime < c.endTime
                     );
@@ -559,7 +561,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
                             previousTimeRef.current = newTime;
                             setCurrentTime(newTime);
 
-                            if (newTime < previousTime && trackRewind && course && lecture) {
+                            if (newTime < previousTime && trackRewind && course && lecture && shouldTrack) {
                               const previousConcept = lecture.concepts.find(
                                 c => previousTime >= c.startTime && previousTime < c.endTime
                               );
