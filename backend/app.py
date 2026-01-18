@@ -391,29 +391,29 @@ Task: {task}
                 
             print(f"[Flask] /api/segment-video lectureId={lecture_id} started")
             
-            # 1. This now returns {"segments": [...], "full_data": {...}}
+            # 1. 'result' is now the full object: {"segments": [...]}
             result = index_and_segment(video_url)
             
-            # 2. Extract the list for logging and the old return format
+            # 2. Extract the list just for your loop/logging
             segments_list = result.get("segments", [])
-            full_data = result.get("full_data")
 
             print(f"[Flask] /api/segment-video lectureId={lecture_id} finished -> {len(segments_list)} segments")
             
-            # 3. Use the list for the loop
+            # 3. Log the first few segments to be sure
             for i, s in enumerate(segments_list[:5]):
                 print(f"[Flask][{i}] {s.get('start')} - {s.get('end')} :: {s.get('title')}")
 
-            # 4. Return everything back to Express
+            # 4. Return to Express. 
+            # Rename 'result' to 'rawAiMetaData' so Express can save it directly to Mongo.
             return jsonify({
                 "lectureId": lecture_id, 
-                "segments": segments_list,
-                "full_data": full_data
+                "segments": segments_list,    # Keeps frontend compatibility
+                "rawAiMetaData": result       # The full object for MongoDB
             }), 200
 
         except Exception as e:
             print(f"[Flask] segmentation error: {e}")
-            traceback.print_exc() # This will show you the exact line number of the crash
+            traceback.print_exc()
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/task-status", methods=["GET"])
