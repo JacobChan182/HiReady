@@ -32,15 +32,9 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
     const content = typeof quizContent === 'string' ? quizContent : JSON.stringify(quizContent);
     
     console.log('🔍 Parsing quiz content:', content.substring(0, 200));
-    console.log('🔍 Full content:', content);
     
-    // Try multiple split patterns
-    let questionBlocks = content.split(/\n\n\d+\.\s*\*\*Question\s+\d+:\*\*/i);
-    
-    // If that didn't work, try without the leading newlines
-    if (questionBlocks.length <= 1) {
-      questionBlocks = content.split(/\d+\.\s*\*\*Question\s+\d+:\*\*/i);
-    }
+    // Split by numbered questions (e.g., "1. **", "2. **", etc.)
+    const questionBlocks = content.split(/\n\d+\.\s+\*\*/);
     
     console.log('📦 Question blocks found:', questionBlocks.length);
     
@@ -49,7 +43,9 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
       
       console.log(`📝 Processing block ${idx}:`, block.substring(0, 150));
       
-      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      // Add back the ** that was consumed by the split
+      const fullBlock = '**' + block;
+      const lines = fullBlock.split('\n').map(l => l.trim()).filter(Boolean);
       console.log(`📋 Lines in block ${idx}:`, lines);
       
       if (lines.length < 2) {
@@ -57,8 +53,14 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
         return;
       }
 
-      // First non-empty line is the question
-      const questionText = lines[0].trim();
+      // First line should be the question (starting with **)
+      const questionMatch = lines[0].match(/\*\*(.+?)\*\*/);
+      if (!questionMatch) {
+        console.warn(`⚠️ Could not extract question from:`, lines[0]);
+        return;
+      }
+      
+      const questionText = questionMatch[1].trim();
       const options: string[] = [];
       let correctAnswer = '';
 
@@ -72,10 +74,10 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
           console.log(`  ✓ Found option: ${line.substring(0, 30)}...`);
         }
         
-        // Match answer like "**Answer:** C) ..." (with or without space before letter)
-        if (/\*\*Answer:\*\*/i.test(line)) {
-          // Try to extract the letter (A, B, C, or D)
-          const answerMatch = line.match(/\*\*Answer:\*\*\s*([A-D])\)/i);
+        // Match answer like "**Answer: B)" or "**Answer: B) ..."
+        if (/\*\*Answer:/i.test(line)) {
+          // Extract the letter (A, B, C, or D)
+          const answerMatch = line.match(/\*\*Answer:\s*([A-D])\)/i);
           if (answerMatch) {
             correctAnswer = answerMatch[1];
             console.log(`  ✓ Found answer: ${correctAnswer}`);
