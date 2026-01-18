@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from twelvelabs import TwelveLabs
 import os
+import traceback
 from dotenv import load_dotenv
 from backboard.client import BackboardClient
 import asyncio
