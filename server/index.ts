@@ -6,17 +6,22 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from project root BEFORE importing other modules
-const envPath = path.resolve(__dirname, '.env');
-dotenv.config({ path: envPath });
-console.log('Bucket Name:', process.env.R2_BUCKET_NAME);
+// Load environment variables from .env file if it exists (for local dev)
+// On Vercel, environment variables are provided via process.env automatically
+// Try to load .env from project root, but don't fail if it doesn't exist
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  try {
+    const envPath = path.resolve(__dirname, '../../.env'); // Go up from server/ to project root
+    dotenv.config({ path: envPath });
+  } catch (error) {
+    // .env file doesn't exist, which is fine - Vercel uses environment variables
+    console.debug('No .env file found, using environment variables from Vercel');
+  }
+}
 
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import path from 'path';
-import { fileURLToPath } from 'url'; // This is what was missing
-
 
 import connectDB from './db';
 import analyticsRoutes from './routes/analytics';

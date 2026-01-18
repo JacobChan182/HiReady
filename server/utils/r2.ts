@@ -8,9 +8,17 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
-const envPath = path.resolve(__dirname, '../.env');
-dotenv.config({ path: envPath });
+// Load environment variables from .env file if it exists (for local dev)
+// On Vercel, environment variables are provided via process.env automatically
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  try {
+    const envPath = path.resolve(__dirname, '../../.env'); // Go up from server/utils/ to project root
+    dotenv.config({ path: envPath });
+  } catch (error) {
+    // .env file doesn't exist, which is fine - Vercel uses environment variables
+    console.debug('No .env file found in r2.ts, using environment variables from Vercel');
+  }
+}
 
 // Cloudflare R2 configuration
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || '';
