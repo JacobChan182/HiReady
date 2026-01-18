@@ -7,6 +7,7 @@ from backboard.client import BackboardClient
 import asyncio
 from pymongo import MongoClient
 from datetime import datetime, UTC
+import traceback
 from services.video_service import start_video_indexing, index_and_segment, verify_index_configuration
 
 load_dotenv()
@@ -465,13 +466,29 @@ Task: {task}
             if not video_url:
                 return jsonify({"error": "videoUrl is required"}), 400
             print(f"[Flask] /api/segment-video lectureId={lecture_id} started")
-            segments = index_and_segment(video_url)
-            print(f"[Flask] /api/segment-video lectureId={lecture_id} finished -> {len(segments)} segments")
-            for i, s in enumerate(segments[:5]):
+
+            # 1. This returns a full object (including a "segments" list)
+            result = index_and_segment(video_url)
+
+            # 2. Extract the list for loop/logging
+            segments_list = result.get("segments", [])
+
+            print(f"[Flask] /api/segment-video lectureId={lecture_id} finished -> {len(segments_list)} segments")
+            
+            # 3. Use the list for the loop
+            for i, s in enumerate(segments_list[:5]):
                 print(f"[Flask][{i}] {s.get('start')} - {s.get('end')} :: {s.get('title')}")
-            return jsonify({"lectureId": lecture_id, "segments": segments}), 200
+
+            # 4. Return to Express (and keep full metadata for Mongo)
+            return jsonify({
+                "lectureId": lecture_id, 
+                "segments": segments_list,
+                "rawAiMetaData": result
+            }), 200
+
         except Exception as e:
             print(f"[Flask] segmentation error: {e}")
+            traceback.print_exc()
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/task-status", methods=["GET"])
