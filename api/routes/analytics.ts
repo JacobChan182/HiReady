@@ -81,6 +81,7 @@ router.post('/rewind', async (req: Request, res: Response) => {
           lectureTitle,
           courseId,
           createdAt: new Date(),
+          rawAiMetaData: {},
           studentRewindEvents: [{
             studentId: userId,
             studentPseudonymId: pseudonymId,

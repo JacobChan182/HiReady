@@ -172,6 +172,7 @@ router.post('/:courseId/lectures', async (req: Request, res: Response) => {
         courseId,
         videoUrl: videoUrl || undefined,
         createdAt: new Date(),
+        rawAiMetaData: {},
         studentRewindEvents: [],
       });
       await course.save();
@@ -318,7 +319,7 @@ router.get('/:courseId/students', async (req: Request, res: Response) => {
 // Add students to a course by email
 router.post('/:courseId/students', async (req: Request, res: Response) => {
   try {
-    const { courseId } = req.params;
+    const courseId = Array.isArray(req.params.courseId) ? req.params.courseId[0] : req.params.courseId;
     const { studentEmails } = req.body;
 
     if (!studentEmails || !Array.isArray(studentEmails) || studentEmails.length === 0) {
