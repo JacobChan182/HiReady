@@ -1,8 +1,96 @@
 // Vercel serverless function handler for Express app
 // This file handles all /api/* routes
 
-// Import from the local server directory (copied into api/ for Vercel compilation)
-// @ts-expect-error - TypeScript doesn't resolve .js imports to .ts files, but Vercel/Node.js will at runtime
-import app from './server/index.js';
+// Import all dependencies directly (Vercel compiles TypeScript in api/ directory)
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
 
+// Recreate __dirname for ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from .env file if it exists (for local dev)
+// On Vercel, environment variables are provided via process.env automatically
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  try {
+    const envPath = path.resolve(__dirname, '../../.env');
+    dotenv.config({ path: envPath });
+  } catch (error) {
+    console.debug('No .env file found, using environment variables from Vercel');
+  }
+}
+
+// Import routes and database connection
+// @ts-expect-error - TypeScript doesn't resolve .js imports to .ts files, but Vercel/Node.js will at runtime
+import connectDB from './server/db.js';
+// @ts-expect-error
+import analyticsRoutes from './server/routes/analytics.js';
+// @ts-expect-error
+import authRoutes from './server/routes/auth.js';
+// @ts-expect-error
+import loginsRoutes from './server/routes/logins.js';
+// @ts-expect-error
+import coursesRoutes from './server/routes/courses.js';
+// @ts-expect-error
+import studentsRoutes from './server/routes/students.js';
+// @ts-expect-error
+import uploadRoutes from './server/routes/upload.js';
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Get allowed origins from environment or defaults
+const frontendUrl = process.env.FRONTEND_URL || process.env.VERCEL_URL 
+  ? `https://${process.env.VERCEL_URL}` 
+  : 'http://localhost:5173';
+
+const allowedOrigins = new Set([
+  frontendUrl,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  // Allow Vercel preview deployments
+  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+]);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+}));
+app.use(cookieParser());
+app.use(express.json({ limit: '500mb' }));
+
+connectDB().catch(console.error);
+
+// Routes
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/logins', loginsRoutes);
+app.use('/api/courses', coursesRoutes);
+app.use('/api/students', studentsRoutes);
+// Apply raw body parser only to direct upload endpoint
+app.use('/api/upload/direct', express.raw({ type: 'video/*', limit: '500mb' }));
+app.use('/api/upload', uploadRoutes);
+
+// health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', server: 'Express' });
+});
+
+// Export app for Vercel serverless functions
 export default app;
+
+// Only listen in local development (Vercel handles this in production)
+if (process.env.VERCEL !== '1' && process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}
