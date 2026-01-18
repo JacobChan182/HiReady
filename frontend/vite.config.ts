@@ -59,6 +59,10 @@ console.log("!!! VITE IS READING THE FRONTEND CONFIG !!!");
 
 export default defineConfig(({ mode }) => ({
   root: path.resolve(__dirname, "./"),
+  build: {
+    outDir: "dist", // Relative to root, so it will be frontend/dist
+    emptyOutDir: true,
+  },
   server: {
     host: true, // Allow connections from localhost, 127.0.0.1, and network
     port: 5173,
