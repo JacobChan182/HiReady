@@ -26,19 +26,19 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
 
 // Import routes and database connection
 // @ts-expect-error - TypeScript doesn't resolve .js imports to .ts files, but Vercel/Node.js will at runtime
-import connectDB from './server/db.js';
+import connectDB from './db.js';
 // @ts-expect-error
-import analyticsRoutes from './server/routes/analytics.js';
+import analyticsRoutes from './routes/analytics.js';
 // @ts-expect-error
-import authRoutes from './server/routes/auth.js';
+import authRoutes from './routes/auth.js';
 // @ts-expect-error
-import loginsRoutes from './server/routes/logins.js';
+import loginsRoutes from './routes/logins.js';
 // @ts-expect-error
-import coursesRoutes from './server/routes/courses.js';
+import coursesRoutes from './routes/courses.js';
 // @ts-expect-error
-import studentsRoutes from './server/routes/students.js';
+import studentsRoutes from './routes/students.js';
 // @ts-expect-error
-import uploadRoutes from './server/routes/upload.js';
+import uploadRoutes from './routes/upload.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
