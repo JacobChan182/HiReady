@@ -4,7 +4,7 @@ import StudentDashboard from './StudentDashboard';
 import InstructorDashboard from './InstructorDashboard';
 
 const Index = () => {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, isAuthTransitioning } = useAuth();
 
   // Show loading state while checking for session
   if (isLoading) {
@@ -18,7 +18,7 @@ const Index = () => {
     );
   }
 
-  if (!isAuthenticated || !user) {
+  if (!isAuthenticated || !user || isAuthTransitioning) {
     return <Login />;
   }
 

@@ -10,6 +10,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  isAuthTransitioning: boolean;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,6 +20,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -65,7 +68,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           cluster: userData.cluster as BehavioralCluster | undefined,
           createdAt: new Date(userData.createdAt),
         };
+        setIsAuthTransitioning(true);
         setUser(newUser);
+        window.setTimeout(() => setIsAuthTransitioning(false), 1000);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign up';
@@ -89,7 +94,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           cluster: userData.cluster as BehavioralCluster | undefined,
           createdAt: new Date(userData.createdAt),
         };
+        setIsAuthTransitioning(true);
         setUser(newUser);
+        window.setTimeout(() => setIsAuthTransitioning(false), 1000);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
@@ -109,6 +116,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -118,6 +129,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated: !!user,
       isLoading,
       error,
+      isAuthTransitioning,
+      clearError,
     }}>
       {children}
     </AuthContext.Provider>

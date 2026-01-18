@@ -494,7 +494,7 @@ const StudentDashboard = () => {
                     </div>
                     <h1 className="text-2xl font-bold leading-tight mt-0.5">{course.name}</h1>
                   </div>
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="bg-white/90 text-slate-900 border-white/70">
                     {availableLectures.length} lecture{availableLectures.length !== 1 ? 's' : ''}
                   </Badge>
                 </div>
