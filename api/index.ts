@@ -78,6 +78,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', server: 'Express' });
 });
 
+// Test root /api route
+app.get('/api', (req, res) => {
+  res.json({ status: 'ok', message: 'API is running', path: req.path, url: req.url });
+});
+
 // Export app for Vercel serverless functions
 export default app;
 
