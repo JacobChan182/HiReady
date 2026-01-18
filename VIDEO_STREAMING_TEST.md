@@ -36,14 +36,21 @@ Yes, you can test video streaming locally! Follow these steps:
    ```json
    [
      {
-       "AllowedOrigins": ["http://localhost:5173", "http://localhost:3000"],
+       "AllowedOrigins": [
+         "https://hi-ready.vercel.app",
+         "https://*.vercel.app",
+         "http://localhost:5173",
+         "http://localhost:3000"
+       ],
        "AllowedMethods": ["GET", "HEAD"],
        "AllowedHeaders": ["*"],
-       "ExposeHeaders": ["Content-Range", "Content-Length", "ETag"],
+       "ExposeHeaders": ["Content-Range", "Content-Length", "ETag", "Accept-Ranges"],
        "MaxAgeSeconds": 3600
      }
    ]
    ```
+   
+   **For Production:** Make sure to include your Vercel production domain (`https://hi-ready.vercel.app`) and preview domains (`https://*.vercel.app`).
 
 ## Testing Steps
 
