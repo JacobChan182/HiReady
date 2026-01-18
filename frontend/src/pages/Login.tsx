@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types';
 import { GraduationCap, Users, Lock, Zap, Shield, Mail, Eye, EyeOff } from 'lucide-react';
@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 const Login = () => {
-  const { signup, signin, error: authError } = useAuth();
+  const { signup, signin, error: authError, clearError } = useAuth();
   const [mode, setMode] = useState<'select' | 'signup' | 'signin'>('select');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [email, setEmail] = useState('');
@@ -16,15 +16,76 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<'success' | 'error' | null>(null);
+  const [feedbackKey, setFeedbackKey] = useState(0);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showEnvelope, setShowEnvelope] = useState(false);
+  const [envelopeKey, setEnvelopeKey] = useState(0);
+  const [isExiting, setIsExiting] = useState(false);
+  const [hasAttempted, setHasAttempted] = useState(false);
+  const displayError = hasAttempted ? (error || authError) : null;
+  const lastErrorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (feedback === 'success') {
+      const timer = window.setTimeout(() => {
+        setFeedback(null);
+        setSuccessMessage(null);
+      }, 1800);
+      return () => window.clearTimeout(timer);
+    }
+  }, [feedback]);
+
+  useEffect(() => {
+    if (isExiting) {
+      const timer = window.setTimeout(() => {
+        setIsExiting(false);
+      }, 1000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [isExiting]);
+
+  useEffect(() => {
+    if (displayError && displayError !== lastErrorRef.current) {
+      setFeedback('error');
+      setFeedbackKey((k) => k + 1);
+    }
+    lastErrorRef.current = displayError || null;
+  }, [displayError]);
+
+  useEffect(() => {
+    if (showEnvelope) {
+      const timer = window.setTimeout(() => {
+        setShowEnvelope(false);
+      }, 900);
+      return () => window.clearTimeout(timer);
+    }
+  }, [showEnvelope]);
+
+  useEffect(() => {
+    if (error || authError) {
+      setError(null);
+      clearError();
+    }
+    setFeedback(null);
+  }, [email, password, selectedRole, clearError]);
 
   const handleSignup = async () => {
+    setHasAttempted(true);
+    setFeedback(null);
+    lastErrorRef.current = null;
+    clearError();
     if (!selectedRole || !email || !password) {
       setError('Please fill in all fields');
+      setFeedback('error');
+      setFeedbackKey((k) => k + 1);
       return;
     }
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
+      setFeedback('error');
+      setFeedbackKey((k) => k + 1);
       return;
     }
 
@@ -33,16 +94,29 @@ const Login = () => {
 
     try {
       await signup(email, password, selectedRole);
+      setSuccessMessage('Account created! Redirecting…');
+      setFeedback('success');
+      setEnvelopeKey((k) => k + 1);
+      setShowEnvelope(true);
+      setIsExiting(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign up');
+      setFeedback('error');
+      setFeedbackKey((k) => k + 1);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSignin = async () => {
+    setHasAttempted(true);
+    setFeedback(null);
+    lastErrorRef.current = null;
+    clearError();
     if (!selectedRole || !email || !password) {
       setError('Please fill in all fields and select a role');
+      setFeedback('error');
+      setFeedbackKey((k) => k + 1);
       return;
     }
 
@@ -51,8 +125,15 @@ const Login = () => {
 
     try {
       await signin(email, password, selectedRole);
+      setSuccessMessage('Welcome back! Signing you in…');
+      setFeedback('success');
+      setEnvelopeKey((k) => k + 1);
+      setShowEnvelope(true);
+      setIsExiting(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
+      setFeedback('error');
+      setFeedbackKey((k) => k + 1);
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +156,7 @@ const Login = () => {
     },
   ];
 
-  const displayError = error || authError;
+  const isSending = isExiting && feedback === 'success';
 
   return (
     <div className="min-h-screen gradient-dark-bg flex items-center justify-center p-4">
@@ -176,6 +257,10 @@ const Login = () => {
                     if (selectedRole) {
                       setMode('signup');
                       setError(null);
+                      clearError();
+                      setFeedback(null);
+                      lastErrorRef.current = null;
+                      setHasAttempted(false);
                     }
                   }}
                   disabled={!selectedRole}
@@ -189,6 +274,10 @@ const Login = () => {
                     if (selectedRole) {
                       setMode('signin');
                       setError(null);
+                      clearError();
+                      setFeedback(null);
+                      lastErrorRef.current = null;
+                      setHasAttempted(false);
                     }
                   }}
                   disabled={!selectedRole}
@@ -210,10 +299,57 @@ const Login = () => {
         {(mode === 'signup' || mode === 'signin') && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={isSending ? { opacity: 0, y: -140, scale: 0.95 } : { opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: isSending ? 1.5 : 0.4, ease: 'easeInOut' }}
             className="max-w-md mx-auto"
           >
-            <Card className="glass-card p-8">
+            <motion.div
+              key={feedbackKey}
+              animate={feedback === 'error' ? { x: [0, -18, 18, -16, 16, -12, 12, -6, 6, 0] } : { x: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <Card className="glass-card p-8 relative overflow-hidden">
+              <AnimatePresence>
+                {showEnvelope && (
+                  <motion.div
+                    key={`envelope-${envelopeKey}`}
+                    initial={{ opacity: 0, y: 24, scale: 0.98 }}
+                    animate={{
+                      opacity: [0, 1, 1, 0],
+                      y: [24, 0, 0, 0],
+                      scale: [0.98, 1, 1, 0.92],
+                    }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 1.5, ease: 'easeInOut' }}
+                    className="absolute inset-0 z-10 rounded-xl bg-gradient-to-br from-primary/30 via-background/80 to-accent/30 backdrop-blur-sm flex items-center justify-center border border-primary/20 pointer-events-none"
+                  >
+                    <div className="relative w-20 h-14">
+                      <div className="absolute inset-0 rounded-md border border-primary/30 bg-card/90 shadow-lg" />
+                      <div
+                        className="absolute left-1/2 top-0 w-0 h-0"
+                        style={{
+                          borderLeft: '40px solid transparent',
+                          borderRight: '40px solid transparent',
+                          borderTop: '32px solid hsl(var(--primary) / 0.18)',
+                          transform: 'translateX(-50%)',
+                        }}
+                      />
+                      <div
+                        className="absolute left-1/2 bottom-0 w-0 h-0"
+                        style={{
+                          borderLeft: '40px solid transparent',
+                          borderRight: '40px solid transparent',
+                          borderBottom: '28px solid hsl(var(--primary) / 0.12)',
+                          transform: 'translateX(-50%)',
+                        }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Mail className="w-5 h-5 text-primary" />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-card-foreground mb-2">
                   {mode === 'signup' ? 'Create Account' : 'Sign In'}
@@ -226,11 +362,33 @@ const Login = () => {
                 </p>
               </div>
 
-              {displayError && (
-                <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <p className="text-sm text-red-400">{displayError}</p>
-                </div>
-              )}
+              <AnimatePresence mode="wait">
+                {displayError && (
+                  <motion.div
+                    key="auth-error"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20"
+                  >
+                    <p className="text-sm text-red-400">{displayError}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence mode="wait">
+                {feedback === 'success' && successMessage && (
+                  <motion.div
+                    key="auth-success"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
+                  >
+                    <p className="text-sm text-emerald-400">{successMessage}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="space-y-4">
                 <div>
@@ -268,7 +426,7 @@ const Login = () => {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-card-foreground"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      {showPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                     </button>
                   </div>
                   {mode === 'signup' && (
@@ -304,6 +462,8 @@ const Login = () => {
                       setEmail('');
                       setPassword('');
                       setError(null);
+                      clearError();
+                      setHasAttempted(false);
                     }}
                     variant="ghost"
                     className="w-full"
@@ -321,6 +481,8 @@ const Login = () => {
                         setEmail('');
                         setPassword('');
                         setError(null);
+                        clearError();
+                        setHasAttempted(false);
                       }}
                       className="text-sm text-muted-foreground hover:text-card-foreground"
                     >
@@ -329,7 +491,8 @@ const Login = () => {
                   </div>
                 )}
               </div>
-            </Card>
+              </Card>
+            </motion.div>
           </motion.div>
         )}
       </motion.div>
