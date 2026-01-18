@@ -400,7 +400,8 @@ export const sendChatMessage = async (
   lectureId?: string,
   videoTitle?: string,
   sessionId?: string,
-  routePreset: 'auto' | 'fastest' | 'logical' | 'everyday' | 'artistic' = 'auto'
+  routePreset: 'auto' | 'fastest' | 'logical' | 'everyday' | 'artistic' = 'auto',
+  userRole: 'student' | 'instructor' = 'student'
 ): Promise<{
   response: string;
   session_id: string;
@@ -417,6 +418,7 @@ export const sendChatMessage = async (
       },
       body: JSON.stringify({
         user_id: userId,
+        user_role: userRole,
         message,
         lecture_id: lectureId,
         video_title: videoTitle,
@@ -450,7 +452,8 @@ export const getChatHistory = async (
   userId: string,
   sessionId?: string,
   limit: number = 50,
-  skip: number = 0
+  skip: number = 0,
+  userRole: 'student' | 'instructor' = 'student'
 ): Promise<Array<{ role: string; content: string; timestamp: string }>> => {
   try {
     const params = new URLSearchParams({
@@ -458,6 +461,7 @@ export const getChatHistory = async (
       skip: String(skip),
     });
     if (sessionId) params.set('session_id', sessionId);
+    params.set('user_role', userRole);
 
     const response = await fetch(
       `${BACKEND_URL}/backboard/chat/history/${userId}?${params.toString()}`,
@@ -483,15 +487,19 @@ export const getChatHistory = async (
 };
 
 export const getChatSessions = async (
-  userId: string
+  userId: string,
+  userRole: 'student' | 'instructor' = 'student'
 ): Promise<Array<{ session_id: string; title?: string; updated_at?: string }>> => {
   try {
-    const response = await fetch(`${BACKEND_URL}/backboard/chat/sessions/${userId}`, {
+    const response = await fetch(
+      `${BACKEND_URL}/backboard/chat/sessions/${userId}?${new URLSearchParams({ user_role: userRole }).toString()}`,
+      {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
-    });
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json();
@@ -510,7 +518,8 @@ export const createChatSession = async (
   userId: string,
   title?: string,
   lectureId?: string,
-  videoTitle?: string
+  videoTitle?: string,
+  userRole: 'student' | 'instructor' = 'student'
 ): Promise<{ session_id: string; title?: string }> => {
   try {
     const response = await fetch(`${BACKEND_URL}/backboard/chat/sessions`, {
@@ -520,6 +529,7 @@ export const createChatSession = async (
       },
       body: JSON.stringify({
         user_id: userId,
+        user_role: userRole,
         title,
         lecture_id: lectureId,
         video_title: videoTitle,
@@ -545,15 +555,19 @@ export const createChatSession = async (
 
 export const deleteChatSession = async (
   userId: string,
-  sessionId: string
+  sessionId: string,
+  userRole: 'student' | 'instructor' = 'student'
 ): Promise<{ deleted: boolean; session_id: string }> => {
   try {
-    const response = await fetch(`${BACKEND_URL}/backboard/chat/sessions/${userId}/${sessionId}`, {
+    const response = await fetch(
+      `${BACKEND_URL}/backboard/chat/sessions/${userId}/${sessionId}?${new URLSearchParams({ user_role: userRole }).toString()}`,
+      {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
       },
-    });
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json();
