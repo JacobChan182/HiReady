@@ -60,7 +60,7 @@ console.log("!!! VITE IS READING THE FRONTEND CONFIG !!!");
 export default defineConfig(({ mode }) => ({
   root: path.resolve(__dirname, "./"),
   build: {
-    outDir: "dist", // Relative to root, so it will be frontend/dist
+    outDir: "../frontend-dist", // Output to project root as frontend-dist
     emptyOutDir: true,
   },
   server: {
