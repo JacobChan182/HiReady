@@ -37,23 +37,42 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Get allowed origins from environment or defaults
-const frontendUrl = process.env.FRONTEND_URL || process.env.VERCEL_URL 
+const frontendUrl = process.env.FRONTEND_URL || (process.env.VERCEL_URL 
   ? `https://${process.env.VERCEL_URL}` 
-  : 'http://localhost:5173';
+  : 'http://localhost:5173');
 
 const allowedOrigins = new Set([
   frontendUrl,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
-  // Allow Vercel preview deployments
+  // Allow Vercel production domain
+  'https://hi-ready.vercel.app',
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
 ]);
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin)) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
       return callback(null, true);
     }
+    
+    // Check exact matches
+    if (allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check if origin matches *.vercel.app pattern
+    if (process.env.VERCEL && /^https:\/\/.*\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is the production domain
+    if (origin === 'https://hi-ready.vercel.app') {
+      return callback(null, true);
+    }
+    
+    console.warn(`CORS blocked for origin: ${origin}`);
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true,
