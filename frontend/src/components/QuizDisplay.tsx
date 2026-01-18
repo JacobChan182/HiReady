@@ -1,331 +1,237 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle, ChevronRight, RotateCcw } from 'lucide-react';
+import { LatexRenderer } from './LatexRenderer.tsx';
 
 interface QuizQuestion {
-  question: string;
-  options: string[];
-  correctAnswer: string | number;
-  explanation?: string;
+    question: string;
+    options: string[];
+    correctAnswer: string; // Stored as 'A', 'B', 'C', or 'D'
+    explanation?: string;
 }
 
 interface QuizDisplayProps {
-  quizContent: string | { questions: QuizQuestion[] };
-  onClose: () => void;
+    quizContent: string | { questions: any[] };
+    onClose: () => void;
 }
 
 const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
-  const [showResults, setShowResults] = useState(false);
+    const [currentQuestion, setCurrentQuestion] = useState(0);
+    const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
+    const [showResults, setShowResults] = useState(false);
 
-  // Parse quiz content
-  const parseQuiz = (): QuizQuestion[] => {
-    if (typeof quizContent === 'object' && quizContent.questions) {
-      return quizContent.questions;
-    }
-
-    const questions: QuizQuestion[] = [];
-    const content = typeof quizContent === 'string' ? quizContent : JSON.stringify(quizContent);
-    
-    console.log('🔍 Parsing quiz content:', content.substring(0, 200));
-    
-    // Split by "**Question N:**" pattern
-    const questionBlocks = content.split(/\*\*Question\s+\d+:\*\*/i);
-    
-    console.log('📦 Question blocks found:', questionBlocks.length);
-    
-    questionBlocks.forEach((block, idx) => {
-      if (!block.trim() || idx === 0) return; // Skip empty blocks and preamble
-      
-      console.log(`📝 Processing block ${idx}:`, block.substring(0, 150));
-      
-      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-      console.log(`📋 Lines in block ${idx}:`, lines);
-      
-      if (lines.length < 2) {
-        console.warn(`⚠️ Block ${idx} has too few lines:`, lines.length);
-        return;
-      }
-
-      // First non-empty line is the question text
-      const questionText = lines[0].trim();
-      const options: string[] = [];
-      let correctAnswer = '';
-
-      // Process remaining lines
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-
-        // Match options like "A) ...", "a) ...", etc. and normalize to uppercase letter
-        const optionMatch = line.match(/^([A-Da-d])\)\s+(.*)$/);
-        if (optionMatch) {
-          const letter = optionMatch[1].toUpperCase();
-          const text = optionMatch[2];
-          const normalized = `${letter}) ${text}`;
-          options.push(normalized);
-          console.log(`  ✓ Found option: ${normalized.substring(0, 30)}...`);
-          continue;
+    // Robust parsing logic inside useMemo to prevent unnecessary re-runs
+    const questions = useMemo((): QuizQuestion[] => {
+        // 1. Handle JSON Object Input
+        if (typeof quizContent === 'object' && quizContent.questions) {
+            return quizContent.questions.map(q => ({
+                question: q.question,
+                options: q.options || q.answerOptions?.map((o: any) => o.text) || [],
+                correctAnswer: String(q.correctAnswer || q.answerOptions?.find((o: any) => o.isCorrect)?.letter || 'A').toUpperCase(),
+                explanation: q.explanation
+            }));
         }
 
-        // Match answer like "**Answer:**" alone, or "**Answer:** B)" or "**Answer:** b) ...".
-        if (/\*\*Answer:\*\*/i.test(line)) {
-          // Try to extract letter from the same line first
-          const inlineAnswer = line.match(/\*\*Answer:\*\*\s*([A-Da-d])\)/i);
-          if (inlineAnswer) {
-            correctAnswer = inlineAnswer[1].toUpperCase();
-            console.log(`  ✓ Found inline answer: ${correctAnswer}`);
-          } else {
-            // Fallback: look at the next line for something like "b) ..." and extract the letter
-            const nextLine = lines[i + 1];
-            const nextMatch = nextLine?.match(/^([A-Da-d])\)\s+/);
-            if (nextMatch) {
-              correctAnswer = nextMatch[1].toUpperCase();
-              console.log(`  ✓ Found answer on following line: ${correctAnswer}`);
-            } else {
-              console.warn(`  ⚠️ Answer line found but couldn't extract letter:`, line);
+        const content = String(quizContent);
+        const questionList: QuizQuestion[] = [];
+
+        // Split by any variation of "Question X" header
+        const blocks = content.split(/(?=###?\s*Question\s*\d+)|(?=\*\*Question\s*\d+[:)]?\*\*)/i);
+
+        blocks.forEach((block) => {
+            const trimmedBlock = block.trim();
+            if (!trimmedBlock || trimmedBlock.length < 20) return;
+
+            const lines = trimmedBlock.split('\n').map(l => l.trim()).filter(Boolean);
+
+            let questionText = "";
+            const options: string[] = [];
+            let correctAnswer = "";
+            let parsingOptions = false;
+
+            lines.forEach(line => {
+                // Skip the "Question X" header line itself
+                if (/^(###?\s*)?Question\s*\d+/i.test(line)) return;
+
+                // Match options like "A) text" or "- A) text"
+                const optionMatch = line.match(/^[-*]?\s*([A-D])\)\s*(.*)/i);
+                // Match answer keys like "**Answer:** B" or "Answer: B"
+                const answerMatch = line.match(/(?:Correct\s+)?Answer:\s*([A-D])/i);
+
+                if (optionMatch) {
+                    parsingOptions = true;
+                    options.push(line.replace(/^[-*]\s*/, "")); // Normalize by removing bullets
+                } else if (answerMatch) {
+                    correctAnswer = answerMatch[1].toUpperCase();
+                } else if (!parsingOptions && !line.startsWith('---')) {
+                    // If we haven't hit options yet, this is the question text
+                    // Clean up bold markers from the question itself
+                    questionText += (questionText ? " " : "") + line.replace(/^\*\*|\*\*$/g, "");
+                }
+            });
+
+            if (questionText && options.length > 0) {
+                questionList.push({
+                    question: questionText,
+                    options,
+                    correctAnswer: correctAnswer || options[0].charAt(0) // Fallback to first option if no answer found
+                });
             }
-          }
+        });
+
+        return questionList;
+    }, [quizContent]);
+
+    const handleSelectAnswer = (option: string) => {
+        setSelectedAnswers({ ...selectedAnswers, [currentQuestion]: option });
+    };
+
+    const calculateScore = () => {
+        return questions.reduce((score, q, idx) => {
+            const userSelection = selectedAnswers[idx]; // e.g., "B) Matrix M..."
+            const userLetter = userSelection?.trim().charAt(0).toUpperCase();
+            return userLetter === q.correctAnswer ? score + 1 : score;
+        }, 0);
+    };
+
+    const handleNext = () => {
+        if (currentQuestion < questions.length - 1) {
+            setCurrentQuestion(currentQuestion + 1);
+        } else {
+            setShowResults(true);
         }
-      }
+    };
 
-      if (questionText && options.length > 0 && correctAnswer) {
-        questions.push({
-          question: questionText,
-          options,
-          correctAnswer,
-        });
-        console.log(`✅ Parsed question ${questions.length}:`, {
-          question: questionText.substring(0, 50),
-          optionCount: options.length,
-          correctAnswer
-        });
-      } else {
-        console.warn(`⚠️ Incomplete question data for block ${idx}:`, {
-          hasQuestion: !!questionText,
-          question: questionText?.substring(0, 50),
-          optionCount: options.length,
-          hasAnswer: !!correctAnswer,
-          allLines: lines
-        });
-      }
-    });
+    const handleRestart = () => {
+        setCurrentQuestion(0);
+        setSelectedAnswers({});
+        setShowResults(false);
+    };
 
-    console.log(`📊 Total questions parsed: ${questions.length}`);
-    console.log(`📊 Parsed questions:`, questions);
-    
-    return questions;
-  };
-
-  const questions = parseQuiz();
-
-  const handleSelectAnswer = (answer: string) => {
-    setSelectedAnswers({ ...selectedAnswers, [currentQuestion]: answer });
-  };
-
-  const handleNext = () => {
-    if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      setShowResults(true);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(currentQuestion - 1);
-    }
-  };
-
-  const handleRestart = () => {
-    setCurrentQuestion(0);
-    setSelectedAnswers({});
-    setShowResults(false);
-  };
-
-  const calculateScore = () => {
-    let correct = 0;
-    questions.forEach((q, idx) => {
-      const userAnswer = selectedAnswers[idx];
-      // Extract just the letter from the user's answer (accept uppercase or lowercase) and normalize
-      const userLetter = userAnswer?.match(/^([A-Da-d])\)/)?.[1]?.toUpperCase();
-      if (userLetter === q.correctAnswer) {
-        correct++;
-      }
-    });
-    return correct;
-  };
-
-  if (questions.length === 0) {
-    return (
-      <Card className="glass-card p-6 border-primary/30">
-        <p className="text-muted-foreground mb-4">
-          Unable to parse quiz questions. Here's the raw content:
-        </p>
-        <pre className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg overflow-auto max-h-96">
-          {typeof quizContent === 'string' ? quizContent : JSON.stringify(quizContent, null, 2)}
-        </pre>
-        <Button variant="ghost" className="mt-4" onClick={onClose}>
-          Close
-        </Button>
-      </Card>
-    );
-  }
-
-  if (showResults) {
-    const score = calculateScore();
-    const percentage = Math.round((score / questions.length) * 100);
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-      >
-        <Card className="glass-card p-6 border-primary/30">
-          <div className="text-center mb-6">
-            <h3 className="text-2xl font-bold mb-2">Quiz Complete!</h3>
-            <div className="text-4xl font-bold gradient-text mb-2">
-              {score} / {questions.length}
-            </div>
-            <p className="text-muted-foreground">
-              You scored {percentage}%
-            </p>
-          </div>
-
-          <div className="space-y-4 mb-6">
-            {questions.map((q, idx) => {
-              const userAnswer = selectedAnswers[idx];
-              const userLetter = userAnswer?.match(/^([A-Da-d])\)/)?.[1]?.toUpperCase();
-              const isCorrect = userLetter === q.correctAnswer;
-
-              return (
-                <div key={idx} className="p-4 rounded-lg bg-muted/50">
-                  <div className="flex items-start gap-2 mb-2">
-                    {isCorrect ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-red-500 mt-0.5" />
-                    )}
-                    <div className="flex-1">
-                      <p className="font-medium mb-2">{q.question}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Your answer: {userAnswer || 'No answer'}
-                      </p>
-                      {!isCorrect && (
-                        <p className="text-sm text-green-600 dark:text-green-400">
-                          Correct answer: {q.options.find(opt => opt.startsWith(q.correctAnswer + ')'))}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+    // Error State
+    if (questions.length === 0) {
+        return (
+            <Card className="glass-card p-6 border-red-500/50 bg-red-500/5">
+                <h3 className="text-xl font-bold mb-2">Quiz Parsing Error</h3>
+                <p className="text-muted-foreground mb-4 text-sm">
+                    We couldn't automatically format the quiz. You can read the raw content below:
+                </p>
+                <div className="bg-black/10 p-4 rounded-md text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto mb-4">
+                    {String(quizContent)}
                 </div>
-              );
-            })}
-          </div>
+                <Button onClick={onClose} variant="outline" className="w-full">Close</Button>
+            </Card>
+        );
+    }
 
-          <div className="flex gap-2">
-            <Button onClick={handleRestart} className="flex-1">
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Retake Quiz
-            </Button>
-            <Button variant="ghost" onClick={onClose}>
-              Close
-            </Button>
-          </div>
-        </Card>
-      </motion.div>
+    // Results View
+    if (showResults) {
+        const score = calculateScore();
+        const percentage = Math.round((score / questions.length) * 100);
+
+        return (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <Card className="glass-card p-6 border-primary/30">
+                    <div className="text-center mb-6">
+                        <h3 className="text-2xl font-bold mb-2">Quiz Results</h3>
+                        <div className="text-5xl font-extrabold gradient-text mb-2">{score} / {questions.length}</div>
+                        <p className="text-muted-foreground">Accuracy: {percentage}%</p>
+                    </div>
+
+                    <div className="space-y-4 mb-6 max-h-[400px] overflow-y-auto pr-2">
+                        {questions.map((q, idx) => {
+                            const userSelection = selectedAnswers[idx];
+                            const userLetter = userSelection?.trim().charAt(0).toUpperCase();
+                            const isCorrect = userLetter === q.correctAnswer;
+
+                            return (
+                                <div key={idx} className={`p-4 rounded-lg border ${isCorrect ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                    <p className="font-medium text-sm mb-2">{q.question}</p>
+                                    <div className="flex items-center gap-2 text-xs">
+                                        {isCorrect ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />}
+                                        <span>Your answer: {userSelection}</span>
+                                    </div>
+                                    {!isCorrect && (
+                                        <p className="text-xs text-green-600 mt-1 font-semibold">
+                                            Correct: {q.options.find(o => o.startsWith(q.correctAnswer))}
+                                        </p>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="flex gap-3">
+                        <Button onClick={handleRestart} className="flex-1" variant="outline"><RotateCcw className="w-4 h-4 mr-2" /> Retry</Button>
+                        <Button onClick={onClose} className="flex-1 gradient-bg">Finish</Button>
+                    </div>
+                </Card>
+            </motion.div>
+        );
+    }
+
+    // Question View
+    const currentQ = questions[currentQuestion];
+    return (
+        <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+            <Card className="glass-card p-6 border-primary/30 relative overflow-hidden">
+                <div className="flex items-center justify-between mb-6">
+                    <Badge variant="secondary" className="bg-primary/10 text-primary">Question {currentQuestion + 1} of {questions.length}</Badge>
+                    <div className="h-1 w-24 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary transition-all" style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }} />
+                    </div>
+                </div>
+
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={currentQuestion}
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        className="min-h-[200px]"
+                    >
+                        <h3 className="text-lg font-medium">
+                            <LatexRenderer text={currentQ.question} />
+                        </h3>            <div className="space-y-3">
+                            {currentQ.options.map((option, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => handleSelectAnswer(option)}
+                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 text-sm ${selectedAnswers[currentQuestion] === option
+                                            ? 'border-primary bg-primary/10 ring-1 ring-primary'
+                                            : 'border-border hover:border-primary/40 hover:bg-muted/50'
+                                        }`}
+                                >
+                                    <LatexRenderer text={option} />
+                                </button>
+                            ))}
+                        </div>
+                    </motion.div>
+                </AnimatePresence>
+
+                <div className="flex items-center justify-between mt-8 pt-4 border-t border-border">
+                    <Button
+                        variant="ghost"
+                        onClick={() => setCurrentQuestion(prev => prev - 1)}
+                        disabled={currentQuestion === 0}
+                    >
+                        Back
+                    </Button>
+                    <Button
+                        onClick={handleNext}
+                        disabled={!selectedAnswers[currentQuestion]}
+                        className="px-8 gradient-bg"
+                    >
+                        {currentQuestion === questions.length - 1 ? 'See Results' : 'Next'}
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                </div>
+            </Card>
+        </motion.div>
     );
-  }
-
-  const currentQ = questions[currentQuestion];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-    >
-      <Card className="glass-card p-6 border-primary/30">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold">Quiz</h3>
-          <Badge variant="outline">
-            Question {currentQuestion + 1} of {questions.length}
-          </Badge>
-        </div>
-
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentQuestion}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.2 }}
-          >
-            <p className="text-lg font-medium mb-4">{currentQ.question}</p>
-
-            <div className="space-y-2 mb-6">
-              {currentQ.options.map((option, idx) => {
-                const isSelected = selectedAnswers[currentQuestion] === option;
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => handleSelectAnswer(option)}
-                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                      isSelected
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    {option}
-                  </button>
-                );
-              })}
-            </div>
-          </motion.div>
-        </AnimatePresence>
-
-        <div className="flex items-center justify-between">
-          <Button
-            variant="ghost"
-            onClick={handlePrevious}
-            disabled={currentQuestion === 0}
-          >
-            Previous
-          </Button>
-
-          <div className="flex gap-1">
-            {questions.map((_, idx) => (
-              <div
-                key={idx}
-                className={`w-2 h-2 rounded-full ${
-                  idx === currentQuestion
-                    ? 'bg-primary'
-                    : selectedAnswers[idx]
-                    ? 'bg-primary/50'
-                    : 'bg-muted'
-                }`}
-              />
-            ))}
-          </div>
-
-          <Button
-            onClick={handleNext}
-            disabled={!selectedAnswers[currentQuestion]}
-            className="gradient-bg"
-          >
-            {currentQuestion === questions.length - 1 ? 'Finish' : 'Next'}
-            <ChevronRight className="w-4 h-4 ml-2" />
-          </Button>
-        </div>
-
-        <Button variant="ghost" className="w-full mt-4" onClick={onClose}>
-          Cancel Quiz
-        </Button>
-      </Card>
-    </motion.div>
-  );
 };
 
 export default QuizDisplay;
