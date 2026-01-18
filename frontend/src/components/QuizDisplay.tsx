@@ -33,8 +33,8 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
     
     console.log('🔍 Parsing quiz content:', content.substring(0, 200));
     
-    // Split by numbered questions (e.g., "1. **", "2. **", etc.)
-    const questionBlocks = content.split(/\n\d+\.\s+\*\*/);
+    // Split by "**Question N:**" pattern
+    const questionBlocks = content.split(/\*\*Question\s+\d+:\*\*/i);
     
     console.log('📦 Question blocks found:', questionBlocks.length);
     
@@ -43,9 +43,7 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
       
       console.log(`📝 Processing block ${idx}:`, block.substring(0, 150));
       
-      // Add back the ** that was consumed by the split
-      const fullBlock = '**' + block;
-      const lines = fullBlock.split('\n').map(l => l.trim()).filter(Boolean);
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
       console.log(`📋 Lines in block ${idx}:`, lines);
       
       if (lines.length < 2) {
@@ -53,36 +51,43 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
         return;
       }
 
-      // First line should be the question (starting with **)
-      const questionMatch = lines[0].match(/\*\*(.+?)\*\*/);
-      if (!questionMatch) {
-        console.warn(`⚠️ Could not extract question from:`, lines[0]);
-        return;
-      }
-      
-      const questionText = questionMatch[1].trim();
+      // First non-empty line is the question text
+      const questionText = lines[0].trim();
       const options: string[] = [];
       let correctAnswer = '';
 
       // Process remaining lines
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
-        
-        // Match options like "A) ...", "B) ...", etc.
-        if (/^[A-D]\)\s+/.test(line)) {
-          options.push(line);
-          console.log(`  ✓ Found option: ${line.substring(0, 30)}...`);
+
+        // Match options like "A) ...", "a) ...", etc. and normalize to uppercase letter
+        const optionMatch = line.match(/^([A-Da-d])\)\s+(.*)$/);
+        if (optionMatch) {
+          const letter = optionMatch[1].toUpperCase();
+          const text = optionMatch[2];
+          const normalized = `${letter}) ${text}`;
+          options.push(normalized);
+          console.log(`  ✓ Found option: ${normalized.substring(0, 30)}...`);
+          continue;
         }
-        
-        // Match answer like "**Answer: B)" or "**Answer: B) ..."
-        if (/\*\*Answer:/i.test(line)) {
-          // Extract the letter (A, B, C, or D)
-          const answerMatch = line.match(/\*\*Answer:\s*([A-D])\)/i);
-          if (answerMatch) {
-            correctAnswer = answerMatch[1];
-            console.log(`  ✓ Found answer: ${correctAnswer}`);
+
+        // Match answer like "**Answer:**" alone, or "**Answer:** B)" or "**Answer:** b) ...".
+        if (/\*\*Answer:\*\*/i.test(line)) {
+          // Try to extract letter from the same line first
+          const inlineAnswer = line.match(/\*\*Answer:\*\*\s*([A-Da-d])\)/i);
+          if (inlineAnswer) {
+            correctAnswer = inlineAnswer[1].toUpperCase();
+            console.log(`  ✓ Found inline answer: ${correctAnswer}`);
           } else {
-            console.warn(`  ⚠️ Answer line found but couldn't extract letter:`, line);
+            // Fallback: look at the next line for something like "b) ..." and extract the letter
+            const nextLine = lines[i + 1];
+            const nextMatch = nextLine?.match(/^([A-Da-d])\)\s+/);
+            if (nextMatch) {
+              correctAnswer = nextMatch[1].toUpperCase();
+              console.log(`  ✓ Found answer on following line: ${correctAnswer}`);
+            } else {
+              console.warn(`  ⚠️ Answer line found but couldn't extract letter:`, line);
+            }
           }
         }
       }
@@ -145,8 +150,8 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
     let correct = 0;
     questions.forEach((q, idx) => {
       const userAnswer = selectedAnswers[idx];
-      // Extract just the letter from the user's answer (e.g., "A) ..." -> "A")
-      const userLetter = userAnswer?.match(/^([A-D])\)/)?.[1];
+      // Extract just the letter from the user's answer (accept uppercase or lowercase) and normalize
+      const userLetter = userAnswer?.match(/^([A-Da-d])\)/)?.[1]?.toUpperCase();
       if (userLetter === q.correctAnswer) {
         correct++;
       }
@@ -193,7 +198,7 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
           <div className="space-y-4 mb-6">
             {questions.map((q, idx) => {
               const userAnswer = selectedAnswers[idx];
-              const userLetter = userAnswer?.match(/^([A-D])\)/)?.[1];
+              const userLetter = userAnswer?.match(/^([A-Da-d])\)/)?.[1]?.toUpperCase();
               const isCorrect = userLetter === q.correctAnswer;
 
               return (
