@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { 
   Zap, LogOut, Users, TrendingUp, AlertTriangle, BookOpen, 
-  BarChart2, PieChart as PieIcon, Activity, Shield, Eye, Plus, ArrowRight, Settings, X, Save, ChevronDown
+  BarChart2, PieChart as PieIcon, Activity, Shield, Eye, Plus, ArrowRight, Settings, X, Save, ChevronDown, UserCheck, ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,6 +38,23 @@ const CHART_COLORS = [
   'hsl(0, 84%, 60%)',
   'hsl(215, 25%, 50%)',
 ];
+
+type ApiCourseLectureRef = {
+  lectureId: string;
+};
+
+type ApiInstructorCourse = {
+  courseId: string;
+  courseName?: string;
+  instructorId?: string;
+  lectures?: ApiCourseLectureRef[];
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'An unexpected error occurred';
+};
 
 const InstructorDashboard = () => {
   const { user, logout } = useAuth();
@@ -104,12 +121,12 @@ const InstructorDashboard = () => {
           
           // Update courses from API
           if (apiCourses && apiCourses.length > 0) {
-            const updatedCourses = apiCourses.map((apiCourse: any) => ({
+            const updatedCourses = (apiCourses as ApiInstructorCourse[]).map((apiCourse) => ({
               id: apiCourse.courseId,
-              name: apiCourse.courseName,
+              name: apiCourse.courseName ?? apiCourse.courseId,
               code: apiCourse.courseId,
-              instructorId: apiCourse.instructorId,
-              lectureIds: apiCourse.lectures?.map((l: any) => l.lectureId) || [],
+              instructorId: apiCourse.instructorId ?? user.id,
+              lectureIds: apiCourse.lectures?.map((l) => l.lectureId) || [],
             }));
             setCourses(updatedCourses);
             
@@ -287,11 +304,11 @@ const InstructorDashboard = () => {
           description: `Student ${email} has been added to the course`,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to add student:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to add student to course',
+        description: getErrorMessage(error) || 'Failed to add student to course',
         variant: 'destructive',
       });
     }
@@ -312,11 +329,11 @@ const InstructorDashboard = () => {
           description: `Student ${email} has been removed from the course`,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to remove student:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to remove student from course',
+        description: getErrorMessage(error) || 'Failed to remove student from course',
         variant: 'destructive',
       });
     }
@@ -362,11 +379,11 @@ const InstructorDashboard = () => {
         
         setIsCourseSettingsOpen(false);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to save course settings:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to save course settings',
+        description: getErrorMessage(error) || 'Failed to save course settings',
         variant: 'destructive',
       });
     } finally {
@@ -796,10 +813,16 @@ const InstructorDashboard = () => {
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                         }}
-                        formatter={(value: any, name: any, props: any) => [
-                          `${value} rewind${value !== 1 ? 's' : ''}`,
-                          `Segment ${props.payload.index + 1}: ${props.payload.fullName}`
-                        ]}
+                        formatter={(value: unknown, _name: unknown, props: unknown) => {
+                          const count = typeof value === 'number' ? value : Number(value);
+                          const payload = (props as { payload?: { index?: number; fullName?: string } })?.payload;
+                          const segmentIndex = payload?.index ?? 0;
+                          const fullName = payload?.fullName ?? '';
+                          return [
+                            `${Number.isFinite(count) ? count : value} rewind${count !== 1 ? 's' : ''}`,
+                            `Segment ${segmentIndex + 1}: ${fullName}`,
+                          ];
+                        }}
                       />
                       <Bar dataKey="rewinds" fill={CHART_COLORS[2]} name="Rewinds" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -1005,10 +1028,11 @@ const InstructorDashboard = () => {
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                         }}
-                        formatter={(value: any, name: any, props: any) => [
-                          `${value} employees (${props.payload.percentage}%)`,
-                          name
-                        ]}
+                        formatter={(value: unknown, name: unknown, props: unknown) => {
+                          const payload = (props as { payload?: { percentage?: string } })?.payload;
+                          const percentage = payload?.percentage ?? '';
+                          return [`${value} employees (${percentage}%)`, String(name)];
+                        }}
                       />
                       <Legend />
                     </PieChart>
@@ -1051,7 +1075,7 @@ const InstructorDashboard = () => {
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px',
                         }}
-                        formatter={(value: any) => [`${value}%`, 'Engagement']}
+                        formatter={(value: unknown) => [`${value}%`, 'Engagement']}
                       />
                       <Bar dataKey="avgEngagement" name="Avg Engagement %" radius={[0, 4, 4, 0]}>
                         {employeeTypesWithPercentages.map((entry, index) => (
