@@ -74,6 +74,8 @@ const InstructorDashboard = () => {
   const [studentEmails, setStudentEmails] = useState('');
   const [courses, setCourses] = useState(mockCourses);
   const [isLoadingLectures, setIsLoadingLectures] = useState(true);
+  const [misunderstoodConcepts, setMisunderstoodConcepts] = useState<{ question: string, incorrectCount: number }[]>([]);
+
   
   // Course settings state
   const [courseSettingsName, setCourseSettingsName] = useState('');
@@ -229,6 +231,7 @@ const InstructorDashboard = () => {
   // Fetch segment rewind counts when selected lecture changes
   useEffect(() => {
     let isMounted = true;
+    let intervalId: number | undefined;
 
     const fetchSegmentRewinds = async () => {
       if (!selectedLecture) {
@@ -253,7 +256,7 @@ const InstructorDashboard = () => {
 
     fetchSegmentRewinds();
 
-    const intervalId = window.setInterval(fetchSegmentRewinds, 10000);
+    intervalId = window.setInterval(fetchSegmentRewinds, 10000);
 
     const handleFocus = () => {
       fetchSegmentRewinds();
@@ -262,7 +265,7 @@ const InstructorDashboard = () => {
 
     return () => {
       isMounted = false;
-      window.clearInterval(intervalId);
+      if (intervalId) window.clearInterval(intervalId);
       window.removeEventListener('focus', handleFocus);
     };
   }, [selectedLecture]);
@@ -722,7 +725,7 @@ const InstructorDashboard = () => {
             <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-semibold">Hi<span className="gradient-text">Ready</span></span>
+            <span className="font-semibold">Edu<span className="gradient-text">Pulse</span></span>
             <Badge variant="outline" className="ml-2 bg-instructor/10 text-instructor border-instructor/30">
               Instructor View
             </Badge>
@@ -896,23 +899,7 @@ const InstructorDashboard = () => {
         {/* Instructor Video Preview */}
         <div className="grid lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
-            {selectedLecture?.videoUrl && selectedLecture.courseId === course?.id ? (
-              <VideoPlayer lecture={selectedLecture} course={course} disableTracking showDebug />
-            ) : (
-              <Card className="glass-card overflow-hidden">
-                <div className="flex flex-col items-center justify-center h-full min-h-[320px] bg-muted/30">
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-                        <Play className="w-8 h-8" />
-                      </div>
-                      <p className="font-medium">No video uploaded</p>
-                      <p className="text-sm">Select a lecture with a video to preview.</p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            )}
+            <VideoPlayer lecture={selectedLecture} course={course} disableTracking />
           </div>
           <div style={{ position: 'relative' }}>
             <Card className="glass-card">
@@ -999,14 +986,10 @@ const InstructorDashboard = () => {
           <TabsContent value="concepts" className="space-y-6">
             <div className="grid lg:grid-cols-2 gap-6">
               {(() => {
-                const baseSegments = selectedLecture?.lectureSegments || [];
                 const chartSegments =
                   (segmentRewindData?.segments && segmentRewindData.segments.length > 0)
                     ? segmentRewindData.segments
-                    : baseSegments.map(seg => ({
-                        ...seg,
-                        count: 0,
-                      }));
+                    : (selectedLecture?.lectureSegments || []);
 
                 if (chartSegments.length === 0) {
                   return null;
@@ -1017,7 +1000,7 @@ const InstructorDashboard = () => {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <BarChart2 className="w-5 h-5 text-primary" />
-                        Segment Watch Count
+                        Segment Rewind Count
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -1059,7 +1042,7 @@ const InstructorDashboard = () => {
                               const segmentIndex = payload?.index ?? 0;
                               const fullName = payload?.fullName ?? '';
                               return [
-                                `${Number.isFinite(count) ? count : value} view${count !== 1 ? 's' : ''}`,
+                                `${Number.isFinite(count) ? count : value} rewind${count !== 1 ? 's' : ''}`,
                                 `Segment ${segmentIndex + 1}: ${fullName}`,
                               ];
                             }}
