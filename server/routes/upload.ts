@@ -133,6 +133,15 @@ router.post('/complete', async (req: Request, res: Response) => {
     }
 
     const videoUrl = getVideoUrl(videoKey);
+    
+    // Transform segments to match ILecture format (map startTime->start, endTime->end, name->title if needed)
+    const lectureSegments = segments.map((seg: any) => ({
+      start: seg.start || seg.startTime || 0,
+      end: seg.end || seg.endTime || 0,
+      title: seg.title || seg.name || 'Untitled Segment',
+      summary: seg.summary || ''
+    }));
+    
     const lectureData = {
       lectureId,
       lectureTitle: lectureTitle || 'Untitled Lecture',
@@ -140,6 +149,7 @@ router.post('/complete', async (req: Request, res: Response) => {
       videoUrl,
       createdAt: new Date(),
       studentRewindEvents: [],
+      lectureSegments: lectureSegments.length > 0 ? lectureSegments : undefined,
       rawAiMetaData: fullAiData || {}
     };
 
@@ -218,13 +228,14 @@ router.post('/direct', async (req: Request, res: Response) => {
 router.get('/stream/:videoKey', async (req: Request, res: Response) => {
   try {
     const { videoKey } = req.params;
+    const videoKeyString = Array.isArray(videoKey) ? videoKey[0] : videoKey;
 
     if (!BUCKET_NAME) {
       return res.status(500).json({ error: 'R2 bucket configuration missing' });
     }
 
     // Decode video key if it's URL encoded
-    const decodedKey = decodeURIComponent(videoKey);
+    const decodedKey = decodeURIComponent(videoKeyString);
 
     // Generate presigned URL for GetObject (supports range requests for streaming)
     const command = new GetObjectCommand({ 

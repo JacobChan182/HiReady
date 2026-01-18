@@ -64,6 +64,28 @@ const InstructorDashboard = () => {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isSavingCourse, setIsSavingCourse] = useState(false);
 
+  // TODO: Replace with actual worker personality data from assessments/quizzes
+  // Mock data for employee worker personality distribution
+  const employeeWorkerTypes = [
+    { name: 'Achiever/Dreamer', count: 18, color: '#3b82f6', avgEngagement: 85 },
+    { name: 'Helper/Mediator', count: 12, color: '#10b981', avgEngagement: 78 },
+    { name: 'Analyst/Investigator', count: 22, color: '#8b5cf6', avgEngagement: 92 },
+    { name: 'Champion/Persuader', count: 8, color: '#f59e0b', avgEngagement: 71 },
+    { name: 'Individualist', count: 10, color: '#ec4899', avgEngagement: 76 },
+    { name: 'Problem Solver/Detective', count: 15, color: '#06b6d4', avgEngagement: 88 },
+    { name: 'Challenger/Debater', count: 7, color: '#ef4444', avgEngagement: 73 },
+  ];
+
+  const totalEmployees = employeeWorkerTypes.reduce((sum, type) => sum + type.count, 0);
+  const employeeTypesWithPercentages = employeeWorkerTypes.map(type => ({
+    ...type,
+    percentage: totalEmployees > 0 ? ((type.count / totalEmployees) * 100).toFixed(1) : '0.0',
+  }));
+
+  const dominantEmployeeType = employeeTypesWithPercentages.reduce((prev, current) =>
+    current.count > prev.count ? current : prev
+  );
+
   // Fetch real lecture data from API
   useEffect(() => {
     const fetchLectures = async () => {
@@ -661,6 +683,10 @@ const InstructorDashboard = () => {
               <PieIcon className="w-4 h-4" />
               Behavioral Clusters
             </TabsTrigger>
+            <TabsTrigger value="worker-types" className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4" />
+              Worker Types
+            </TabsTrigger>
           </TabsList>
 
           {/* Concept Analysis Tab */}
@@ -735,6 +761,52 @@ const InstructorDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Segment Rewinds Chart */}
+            {selectedLecture?.lectureSegments && selectedLecture.lectureSegments.length > 0 && (
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart2 className="w-5 h-5 text-primary" />
+                    Segment Rewind Count
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={selectedLecture.lectureSegments.map((seg, index) => ({
+                      name: seg.title.length > 20 ? seg.title.substring(0, 20) + '...' : seg.title,
+                      fullName: seg.title,
+                      rewinds: seg.count || 0,
+                      index,
+                      time: `${Math.floor(seg.start / 60)}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}`,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="hsl(var(--muted-foreground))" 
+                        tick={{ fontSize: 11 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={100}
+                      />
+                      <YAxis stroke="hsl(var(--muted-foreground))" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        formatter={(value: any, name: any, props: any) => [
+                          `${value} rewind${value !== 1 ? 's' : ''}`,
+                          `Segment ${props.payload.index + 1}: ${props.payload.fullName}`
+                        ]}
+                      />
+                      <Bar dataKey="rewinds" fill={CHART_COLORS[2]} name="Rewinds" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Timeline Tab */}
@@ -894,6 +966,180 @@ const InstructorDashboard = () => {
                       </div>
                     </motion.div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Worker Types Tab */}
+          <TabsContent value="worker-types" className="space-y-6">
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* Worker Type Distribution Pie */}
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PieIcon className="w-5 h-5 text-primary" />
+                    Worker Type Distribution
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={employeeTypesWithPercentages}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="count"
+                        nameKey="name"
+                      >
+                        {employeeTypesWithPercentages.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        formatter={(value: any, name: any, props: any) => [
+                          `${value} employees (${props.payload.percentage}%)`,
+                          name
+                        ]}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="mt-4 p-3 rounded-lg bg-muted/50 text-center">
+                    <p className="text-sm text-muted-foreground mb-1">Dominant Type</p>
+                    <p className="font-semibold" style={{ color: dominantEmployeeType.color }}>
+                      {dominantEmployeeType.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {dominantEmployeeType.count} employees ({dominantEmployeeType.percentage}%)
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Engagement by Worker Type */}
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Engagement by Worker Type
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={employeeTypesWithPercentages} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis type="number" stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={150}
+                        stroke="hsl(var(--muted-foreground))"
+                        tick={{ fontSize: 11 }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        formatter={(value: any) => [`${value}%`, 'Engagement']}
+                      />
+                      <Bar dataKey="avgEngagement" name="Avg Engagement %" radius={[0, 4, 4, 0]}>
+                        {employeeTypesWithPercentages.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Worker Type Details */}
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  Worker Type Breakdown
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {employeeTypesWithPercentages
+                    .sort((a, b) => b.count - a.count)
+                    .map((type, i) => (
+                      <motion.div
+                        key={type.name}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.1 }}
+                        className="p-4 rounded-lg border"
+                        style={{ 
+                          backgroundColor: `${type.color}10`,
+                          borderColor: `${type.color}30`
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: type.color }}
+                          />
+                          <span className="font-medium text-sm">{type.name}</span>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Employees</span>
+                            <Badge variant="outline">
+                              {type.count} ({type.percentage}%)
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Avg Engagement</span>
+                            <Badge
+                              variant={type.avgEngagement >= 85 ? 'default' : 'secondary'}
+                            >
+                              {type.avgEngagement}%
+                            </Badge>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                </div>
+
+                <div className="mt-6 p-4 rounded-lg bg-muted/50">
+                  <h4 className="font-semibold mb-2 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-primary" />
+                    Key Insights
+                  </h4>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                      <span>
+                        <strong className="text-foreground">Analyst/Investigator</strong> types show the highest engagement ({employeeTypesWithPercentages.find(t => t.name === 'Analyst/Investigator')?.avgEngagement}%), suggesting content resonates well with analytical learners
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                      <span>
+                        Most employees identify as <strong className="text-foreground">{dominantEmployeeType.name}</strong> ({dominantEmployeeType.percentage}%), indicating a workforce strength in this area
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                      <span>
+                        Consider tailoring content delivery to accommodate diverse learning styles across all {employeeTypesWithPercentages.length} worker types
+                      </span>
+                    </li>
+                  </ul>
                 </div>
               </CardContent>
             </Card>

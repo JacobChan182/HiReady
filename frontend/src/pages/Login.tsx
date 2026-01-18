@@ -58,13 +58,6 @@ const Login = () => {
     }
   };
 
-    // This will now be automatically routed to http://localhost:5001/api/hello
-  const fetchData = async () => {
-    const response = await fetch('/api/hello'); 
-    const data = await response.json();
-    console.log(data);
-  };
-
   const roles = [
     {
       id: 'student' as UserRole,
@@ -86,7 +79,6 @@ const Login = () => {
 
   return (
     <div className="min-h-screen gradient-dark-bg flex items-center justify-center p-4">
-      fetchData();
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -105,7 +97,7 @@ const Login = () => {
               <Zap className="w-7 h-7 text-primary-foreground" />
             </div>
             <span className="text-3xl font-bold text-white">
-              Hi<span className="gradient-text">Ready</span>.tech
+              <span className="gradient-text">HiRe</span>ady.tech
             </span>
           </motion.div>
           <p className="text-slate-400 text-lg max-w-md mx-auto">

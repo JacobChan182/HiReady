@@ -12,6 +12,12 @@ export interface ILecture {
     studentPseudonymId: string;
     rewindEvents: IRewindEvent[];
   }>;
+  lectureSegments?: Array<{
+    start: number;
+    end: number;
+    title: string;
+    summary: string;
+  }>;
   rawAiMetaData: Record<string, any>;
 }
 

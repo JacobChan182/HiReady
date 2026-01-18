@@ -45,17 +45,31 @@ router.get('/:userId/courses', async (req: Request, res: Response) => {
       lectureIds: course.lectures.map(l => l.lectureId),
     }));
 
-    // Transform all lectures from all courses
+    // Transform all lectures from all courses, with segments from rawAiMetaData/segments
     const allLectures = courses.flatMap(course =>
-      course.lectures.map(lecture => ({
-        id: lecture.lectureId,
-        title: lecture.lectureTitle,
-        courseId: course.courseId,
-        videoUrl: lecture.videoUrl || '',
-        duration: 0, // Duration not stored in DB, will need to be calculated or stored
-        concepts: [], // Concepts not stored in DB, will need separate fetch
-        uploadedAt: lecture.createdAt ? new Date(lecture.createdAt) : new Date(),
-      }))
+      course.lectures.map(lecture => {
+        // Extract segments from rawAiMetaData.segments
+        const rawSegments = lecture.rawAiMetaData?.segments || [];
+        // Transform segments to match LectureSegment format
+        const lectureSegments = Array.isArray(rawSegments) ? rawSegments.map((seg: any) => ({
+          start: seg.start || seg.startTime || 0,
+          end: seg.end || seg.endTime || 0,
+          title: seg.title || seg.name || 'Untitled Segment',
+          summary: seg.summary || '',
+          count: seg.count !== undefined ? seg.count : 0
+        })) : [];
+
+        return {
+          id: lecture.lectureId,
+          title: lecture.lectureTitle,
+          courseId: course.courseId,
+          videoUrl: lecture.videoUrl || '',
+          duration: 0, // Duration not stored in DB, will need to be calculated or stored
+          concepts: [], // Concepts not stored in DB, will need separate fetch
+          lectureSegments: lectureSegments,
+          uploadedAt: lecture.createdAt ? new Date(lecture.createdAt) : new Date(),
+        };
+      })
     );
 
     res.status(200).json({

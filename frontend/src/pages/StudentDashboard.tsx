@@ -1,54 +1,97 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { mockLectures, mockCourses, enrichLecturesWithMockData } from '@/data/mockData';
-import { getStudentCourses, getVideoStreamUrl } from '@/lib/api';
+import { getStudentCourses } from '@/lib/api';
 import { Concept, Lecture, Course } from '@/types';
-import {
-  Play,
-  Pause,
-  Search,
-  Sparkles,
-  Clock,
-  BookOpen,
-  ChevronRight,
-  Zap,
-  LogOut,
-  User,
-  ChevronDown,
+import { 
+  Search, Sparkles, Clock, 
+  BookOpen, ChevronRight, Zap, LogOut, User, ChevronDown, TrendingUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import VideoPlayer, { VideoPlayerRef } from '@/components/VideoPlayer';
 import ChatWidget from '@/components/ChatWidget';
 
 const StudentDashboard = () => {
   const { user, logout } = useAuth();
-  const { trackEvent, trackRewind } = useAnalytics();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const previousTimeRef = useRef<number>(0);
   const [courses, setCourses] = useState<Course[]>([]);
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSummary, setShowSummary] = useState(false);
-  const [activeConcept, setActiveConcept] = useState<Concept | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [streamUrl, setStreamUrl] = useState<string | null>(null);
-  const [isLoadingStream, setIsLoadingStream] = useState(false);
+  const videoPlayerRef = useRef<VideoPlayerRef | null>(null);
+
+  // TODO: Replace with actual assessment/quiz scores from your teammate's implementation
+  // Placeholder worker personality scores (0-100 for each type)
+  const [workerPersonality] = useState({
+    achieverDreamer: 75,      // Replace with actual quiz score
+    helperMediator: 60,       // Replace with actual quiz score
+    analystInvestigator: 85,  // Replace with actual quiz score
+    championPersuader: 45,    // Replace with actual quiz score
+    individualist: 55,        // Replace with actual quiz score
+    problemSolverDetective: 70, // Replace with actual quiz score
+    challengerDebater: 50,    // Replace with actual quiz score
+  });
+
+  // Calculate percentages for pie chart
+  const workerTypes = [
+    { name: 'Achiever/Dreamer', score: workerPersonality.achieverDreamer, color: '#3b82f6' },
+    { name: 'Helper/Mediator', score: workerPersonality.helperMediator, color: '#10b981' },
+    { name: 'Analyst/Investigator', score: workerPersonality.analystInvestigator, color: '#8b5cf6' },
+    { name: 'Champion/Persuader', score: workerPersonality.championPersuader, color: '#f59e0b' },
+    { name: 'Individualist', score: workerPersonality.individualist, color: '#ec4899' },
+    { name: 'Problem Solver/Detective', score: workerPersonality.problemSolverDetective, color: '#06b6d4' },
+    { name: 'Challenger/Debater', score: workerPersonality.challengerDebater, color: '#ef4444' },
+  ];
+
+  const totalScore = workerTypes.reduce((sum, type) => sum + type.score, 0);
+  const workerTypesWithPercentages = workerTypes.map(type => ({
+    ...type,
+    percentage: totalScore > 0 ? (type.score / totalScore) * 100 : 0,
+  }));
+
+  // Get dominant worker type
+  const dominantType = workerTypesWithPercentages.reduce((prev, current) => 
+    current.percentage > prev.percentage ? current : prev
+  );
+
+  // Generate pie chart paths
+  const generatePieChart = () => {
+    let cumulativePercentage = 0;
+    return workerTypesWithPercentages.map((type) => {
+      const startAngle = (cumulativePercentage / 100) * 360;
+      cumulativePercentage += type.percentage;
+      const endAngle = (cumulativePercentage / 100) * 360;
+      
+      const startRad = (startAngle - 90) * (Math.PI / 180);
+      const endRad = (endAngle - 90) * (Math.PI / 180);
+      
+      const x1 = 50 + 45 * Math.cos(startRad);
+      const y1 = 50 + 45 * Math.sin(startRad);
+      const x2 = 50 + 45 * Math.cos(endRad);
+      const y2 = 50 + 45 * Math.sin(endRad);
+      
+      const largeArc = type.percentage > 50 ? 1 : 0;
+      
+      return {
+        ...type,
+        path: `M 50 50 L ${x1} ${y1} A 45 45 0 ${largeArc} 1 ${x2} ${y2} Z`,
+      };
+    });
+  };
+
+  const pieChartData = generatePieChart();
 
   // Fetch student courses and lectures from API
   useEffect(() => {
@@ -164,198 +207,19 @@ const StudentDashboard = () => {
       }
     }
   };
-
-  // Extract video key from videoUrl (videoUrl format: ${PUBLIC_URL}/${key} or R2 endpoint)
-  const extractVideoKey = (videoUrl: string): string | null => {
-    if (!videoUrl) return null;
-    
-    try {
-      // Look for 'videos' in the path - this is always present in our video keys
-      const videosMatch = videoUrl.match(/\/videos\/.+$/);
-      if (videosMatch) {
-        // Remove leading slash to get the key
-        return videosMatch[0].substring(1);
-      }
-      
-      // If no 'videos' found, try to extract from URL path
-      // This handles edge cases where the URL structure might differ
-      const url = new URL(videoUrl);
-      const pathParts = url.pathname.split('/').filter(part => part);
-      
-      // Look for 'videos' in path parts
-      const videosIndex = pathParts.findIndex(part => part === 'videos');
-      if (videosIndex !== -1) {
-        return pathParts.slice(videosIndex).join('/');
-      }
-    } catch (error) {
-      // If URL parsing fails, try regex approach
-      const videosMatch = videoUrl.match(/\/videos\/.+$/);
-      if (videosMatch) {
-        return videosMatch[0].substring(1);
-      }
-    }
-    
-    return null;
-  };
-
-  // Fetch presigned stream URL when lecture changes
-  useEffect(() => {
-    const loadStreamUrl = async () => {
-      if (!selectedLecture?.videoUrl) {
-        setStreamUrl(null);
-        return;
-      }
-
-      setIsLoadingStream(true);
-      try {
-        const videoKey = extractVideoKey(selectedLecture.videoUrl);
-        
-        if (!videoKey) {
-          // Fallback to using the videoUrl directly if we can't extract key
-          console.warn('Could not extract video key, using videoUrl directly:', selectedLecture.videoUrl);
-          setStreamUrl(selectedLecture.videoUrl);
-          setIsLoadingStream(false);
-          return;
-        }
-
-        const response = await getVideoStreamUrl(videoKey);
-        if (response.success && response.streamUrl) {
-          setStreamUrl(response.streamUrl);
-        } else {
-          // Fallback to original videoUrl
-          setStreamUrl(selectedLecture.videoUrl);
-        }
-      } catch (error) {
-        console.error('Failed to load stream URL, using videoUrl directly:', error);
-        // Fallback to original videoUrl
-        setStreamUrl(selectedLecture.videoUrl);
-      } finally {
-        setIsLoadingStream(false);
-      }
-    };
-
-    loadStreamUrl();
-  }, [selectedLecture?.videoUrl, selectedLecture?.id]);
-
-  // Reset previous time and duration when lecture changes
-  useEffect(() => {
-    if (selectedLecture) {
-      previousTimeRef.current = 0;
-      setCurrentTime(0);
-      setVideoDuration(0); // Reset duration, will be set when video metadata loads
-    }
-  }, [selectedLecture]);
-
-  // Track current concept based on video time
-  useEffect(() => {
-    if (selectedLecture) {
-      const concept = selectedLecture.concepts.find(
-        c => currentTime >= c.startTime && currentTime < c.endTime
-      );
-      if (concept && concept.id !== activeConcept?.id) {
-        setActiveConcept(concept);
-      }
-    }
-  }, [currentTime, selectedLecture, activeConcept]);
-
-  const handlePlayPause = () => {
-    if (videoRef.current && selectedLecture) {
-      if (isPlaying) {
-        videoRef.current.pause();
-        trackEvent('pause', selectedLecture.id, activeConcept?.id);
-      } else {
-        videoRef.current.play();
-        trackEvent('play', selectedLecture.id, activeConcept?.id);
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const jumpToConcept = (concept: Concept) => {
-    if (videoRef.current && selectedLecture) {
-      const previousTime = previousTimeRef.current;
-      const newTime = concept.startTime;
-      
-      // Track rewind if jumping backwards
-      if (newTime < previousTime && trackRewind && course) {
-        const previousConcept = selectedLecture.concepts.find(
-          c => previousTime >= c.startTime && previousTime < c.endTime
-        );
-        trackRewind(
-          selectedLecture.id,
-          selectedLecture.title,
-          course.id,
-          {
-            fromTime: previousTime,
-            toTime: newTime,
-            rewindAmount: previousTime - newTime,
-            fromConceptId: previousConcept?.id,
-            fromConceptName: previousConcept?.name,
-            toConceptId: concept.id,
-            toConceptName: concept.name,
-          }
-        );
-      }
-      
-      videoRef.current.currentTime = newTime;
-      previousTimeRef.current = newTime;
-      setCurrentTime(newTime);
-      trackEvent('concept-jump', selectedLecture.id, concept.id);
-      if (!isPlaying) {
-        videoRef.current.play();
-        setIsPlaying(true);
-      }
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (videoRef.current && selectedLecture) {
-      const newTime = videoRef.current.currentTime;
-      const previousTime = previousTimeRef.current;
-      
-      // Detect rewind: current time is less than previous time
-      // Only track if there's a meaningful rewind (more than 0.5 seconds to avoid false positives)
-      if (previousTime > 0 && newTime < previousTime - 0.5) {
-        const rewindAmount = previousTime - newTime;
-        
-        // Find concepts at both positions
-        const previousConcept = selectedLecture.concepts.find(
-          c => previousTime >= c.startTime && previousTime < c.endTime
-        );
-        const newConcept = selectedLecture.concepts.find(
-          c => newTime >= c.startTime && newTime < c.endTime
-        );
-        
-        // Track rewind event to MongoDB
-        if (trackRewind && course) {
-          trackRewind(
-            selectedLecture.id,
-            selectedLecture.title,
-            course.id,
-            {
-              fromTime: previousTime,
-              toTime: newTime,
-              rewindAmount: rewindAmount,
-              fromConceptId: previousConcept?.id,
-              fromConceptName: previousConcept?.name,
-              toConceptId: newConcept?.id,
-              toConceptName: newConcept?.name,
-            }
-          );
-        }
-      }
-      
-      previousTimeRef.current = newTime;
-      setCurrentTime(newTime);
-    }
-  };
-
   const filteredConcepts = selectedLecture
     ? selectedLecture.concepts.filter(c =>
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.summary.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : [];
+
+  const jumpToConcept = (concept: Concept) => {
+    // Delegate to VideoPlayer component
+    if (videoPlayerRef.current) {
+      videoPlayerRef.current.jumpToConcept(concept);
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -366,7 +230,6 @@ const StudentDashboard = () => {
   const generateSummary = () => {
     if (selectedLecture) {
       setShowSummary(true);
-      trackEvent('seek', selectedLecture.id, undefined, { action: 'generate-summary' });
     }
   };
 
@@ -496,107 +359,7 @@ const StudentDashboard = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
               >
-                <Card className="glass-card overflow-hidden">
-                  {/* Video */}
-                  <div className="relative aspect-video bg-secondary">
-                    {isLoadingStream ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="text-center">
-                          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                          <p className="text-sm text-muted-foreground">Loading video...</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <video
-                        ref={videoRef}
-                        src={streamUrl || selectedLecture.videoUrl}
-                        className="w-full h-full object-contain"
-                        onTimeUpdate={handleTimeUpdate}
-                        onLoadedMetadata={() => {
-                          if (videoRef.current) {
-                            setVideoDuration(videoRef.current.duration || 0);
-                          }
-                        }}
-                        onEnded={() => setIsPlaying(false)}
-                        preload="metadata"
-                        playsInline
-                        crossOrigin="anonymous"
-                      />
-                    )}
-                  
-                  {/* Play overlay */}
-                  {!isPlaying && (
-                    <div 
-                      className="absolute inset-0 flex items-center justify-center bg-secondary/50 cursor-pointer"
-                      onClick={handlePlayPause}
-                    >
-                      <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center glow">
-                        <Play className="w-8 h-8 text-primary-foreground ml-1" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Current concept overlay */}
-                  {activeConcept && (
-                    <motion.div
-                      key={activeConcept.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="absolute bottom-4 left-4 right-4"
-                    >
-                      <div className="glass-card px-4 py-2 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <BookOpen className="w-4 h-4 text-primary" />
-                          <span className="text-sm font-medium">{activeConcept.name}</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                  </div>
-
-                  {/* Controls */}
-                  <div className="p-4 space-y-3">
-                    <div className="flex items-center gap-4">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={handlePlayPause}
-                      >
-                        {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                      </Button>
-                      
-                      <div className="flex-1">
-                        <Progress 
-                          value={videoDuration > 0 ? (currentTime / videoDuration) * 100 : 0}
-                          className="h-2"
-                        />
-                      </div>
-                      
-                      <span className="text-sm font-mono text-muted-foreground">
-                        {formatTime(currentTime)} / {formatTime(videoDuration)}
-                      </span>
-                    </div>
-
-                    {/* Concept timeline */}
-                    <div className="flex gap-1 h-2">
-                      {selectedLecture.concepts.map((concept, i) => (
-                        <div
-                          key={concept.id}
-                          className={`rounded-full cursor-pointer transition-all ${
-                            activeConcept?.id === concept.id 
-                              ? 'bg-primary glow' 
-                              : 'bg-muted hover:bg-muted-foreground/30'
-                          }`}
-                          style={{ 
-                            flex: videoDuration > 0 ? (concept.endTime - concept.startTime) / videoDuration : 0
-                          }}
-                          onClick={() => jumpToConcept(concept)}
-                          title={concept.name}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </Card>
+                <VideoPlayer ref={videoPlayerRef} lecture={selectedLecture} course={course} />
               </motion.div>
 
               {/* Lecture Info */}
@@ -652,6 +415,64 @@ const StudentDashboard = () => {
 
             {/* Sidebar */}
             <div className="space-y-4">
+              {/* Worker Personality Section */}
+              <Card className="glass-card p-4">
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                  What Kind of Worker Are You?
+                </h3>
+                
+                {/* Pie Chart */}
+                <div className="flex items-center justify-center mb-4">
+                  <svg viewBox="0 0 100 100" className="w-48 h-48">
+                    {pieChartData.map((slice, index) => (
+                      <motion.path
+                        key={slice.name}
+                        d={slice.path}
+                        fill={slice.color}
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="cursor-pointer hover:opacity-80 transition-opacity"
+                      />
+                    ))}
+                  </svg>
+                </div>
+
+                {/* Dominant Type */}
+                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: `${dominantType.color}15` }}>
+                  <p className="text-xs text-muted-foreground mb-1">Your Dominant Type</p>
+                  <p className="font-semibold" style={{ color: dominantType.color }}>
+                    {dominantType.name}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {dominantType.percentage.toFixed(1)}% of your profile
+                  </p>
+                </div>
+
+                {/* Legend */}
+                <div className="space-y-2">
+                  {workerTypesWithPercentages
+                    .sort((a, b) => b.percentage - a.percentage)
+                    .map((type) => (
+                      <div key={type.name} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: type.color }}
+                          />
+                          <span className="text-muted-foreground">{type.name}</span>
+                        </div>
+                        <span className="font-mono font-medium">{type.percentage.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                </div>
+
+                <p className="text-xs text-muted-foreground mt-4 pt-4 border-t">
+                  Based on your assessment results. Complete more quizzes to refine your profile.
+                </p>
+              </Card>
+
               {/* Concept Search */}
               <Card className="glass-card p-4">
                 <div className="relative">
@@ -679,11 +500,7 @@ const StudentDashboard = () => {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.05 }}
                       onClick={() => jumpToConcept(concept)}
-                      className={`p-3 rounded-lg cursor-pointer transition-all ${
-                        activeConcept?.id === concept.id
-                          ? 'bg-primary/10 border border-primary/30'
-                          : 'bg-muted/50 hover:bg-muted'
-                      }`}
+                      className="p-3 rounded-lg cursor-pointer transition-all bg-muted/50 hover:bg-muted"
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-sm">{concept.name}</span>
