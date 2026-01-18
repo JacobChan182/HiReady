@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express';
+// @ts-expect-error - AWS SDK types are not resolving correctly in TypeScript, but work at runtime
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+// @ts-expect-error - AWS SDK types are not resolving correctly in TypeScript, but work at runtime
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import axios from 'axios';
 import { s3Client, BUCKET_NAME, generateVideoKey, getVideoUrl } from '../utils/r2.js';

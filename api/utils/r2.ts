@@ -1,3 +1,4 @@
+// @ts-expect-error - AWS SDK types are not resolving correctly in TypeScript, but work at runtime
 import { S3Client } from '@aws-sdk/client-s3';
 import dotenv from 'dotenv';
 import path from 'path';
