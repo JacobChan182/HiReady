@@ -23,13 +23,13 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
-import connectDB from './db';
-import analyticsRoutes from './routes/analytics';
-import authRoutes from './routes/auth';
-import loginsRoutes from './routes/logins';
-import coursesRoutes from './routes/courses';
-import studentsRoutes from './routes/students';
-import uploadRoutes from './routes/upload';
+import connectDB from './db.js';
+import analyticsRoutes from './routes/analytics.js';
+import authRoutes from './routes/auth.js';
+import loginsRoutes from './routes/logins.js';
+import coursesRoutes from './routes/courses.js';
+import studentsRoutes from './routes/students.js';
+import uploadRoutes from './routes/upload.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
