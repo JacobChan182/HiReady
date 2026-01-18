@@ -544,6 +544,8 @@ const StudentDashboard = () => {
           <ChatWidget lectureId={selectedLecture?.id} videoTitle={selectedLecture?.title} />
           </>
         )}
+          </>
+        )}
       </main>
     </div>
   );

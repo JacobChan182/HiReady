@@ -127,7 +127,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
 
   // Track current segment based on video time
   useEffect(() => {
-    if (lecture && lecture.lectureSegments) {
+    if (lecture && lecture.lectureSegments && lecture.lectureSegments.length > 0) {
       const segment = lecture.lectureSegments.find(
         s => currentTime >= s.start && currentTime < s.end
       );
@@ -147,6 +147,13 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
       setActiveSegment(null);
     }
   }, [currentTime, lecture]);
+
+  // Debug: Log when lecture segments change
+  useEffect(() => {
+    if (lecture) {
+      console.log('[VideoPlayer] Lecture segments:', lecture.lectureSegments?.length || 0, lecture.lectureSegments);
+    }
+  }, [lecture?.id, lecture?.lectureSegments]);
 
   const handlePlayPause = async () => {
     if (!videoRef.current || !lecture) return;
@@ -346,7 +353,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
         
         {/* Click overlay to toggle play/pause - always present but invisible when playing */}
         <div 
-          className={`absolute inset-0 cursor-pointer z-10 ${!isPlaying ? 'flex items-center justify-center bg-secondary/50' : ''}`}
+          className={`absolute inset-0 cursor-pointer z-[5] ${!isPlaying ? 'flex items-center justify-center bg-secondary/50' : ''}`}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -384,7 +391,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
             key={activeSegment.title}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute top-4 left-4 right-4 pointer-events-none z-10"
+            className="absolute top-4 left-4 right-4 pointer-events-none z-20"
           >
             <div className="glass-card px-4 py-2 rounded-lg border border-primary/30">
               <div className="flex items-center gap-2">
@@ -451,20 +458,20 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
             {lecture.lectureSegments && lecture.lectureSegments.length > 0 && (
               <>
                 {/* Vertical divider lines */}
-                <div className="absolute top-0 left-0 right-0 h-2 pointer-events-none">
+                <div className="absolute top-0 left-0 right-0 h-2 pointer-events-none z-10">
                   {lecture.lectureSegments.map((segment, i) => {
                     const segmentStartPercent = videoDuration > 0 ? (segment.start / videoDuration) * 100 : 0;
                     return (
                       <div
                         key={i}
-                        className="absolute top-0 bottom-0 w-px bg-border/50"
+                        className="absolute top-0 bottom-0 w-px bg-border"
                         style={{ left: `${segmentStartPercent}%` }}
                       />
                     );
                   })}
                 </div>
                 {/* Hoverable segment areas with tooltips */}
-                <div className="absolute top-0 left-0 right-0 h-2 pointer-events-none">
+                <div className="absolute top-0 left-0 right-0 h-2 pointer-events-auto z-10">
                   {lecture.lectureSegments.map((segment, i) => {
                     const segmentStartPercent = videoDuration > 0 ? (segment.start / videoDuration) * 100 : 0;
                     const segmentEndPercent = videoDuration > 0 ? (segment.end / videoDuration) * 100 : 0;
@@ -476,6 +483,21 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
                         style={{ 
                           left: `${segmentStartPercent}%`,
                           width: `${segmentWidth}%`
+                        }}
+                        onClick={(e) => {
+                          // Forward click to progress bar for seeking
+                          const progressBarContainer = e.currentTarget.parentElement?.parentElement;
+                          if (progressBarContainer && videoRef.current && videoDuration > 0) {
+                            const rect = progressBarContainer.getBoundingClientRect();
+                            const clickX = e.clientX - rect.left;
+                            const percent = clickX / rect.width;
+                            const newTime = percent * videoDuration;
+                            
+                            videoRef.current.currentTime = newTime;
+                            previousTimeRef.current = newTime;
+                            setCurrentTime(newTime);
+                            trackEvent('seek', lecture.id, undefined, { action: 'segment-seek' });
+                          }
                         }}
                       >
                         {/* Tooltip label */}
