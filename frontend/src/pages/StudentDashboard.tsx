@@ -368,9 +368,7 @@ const StudentDashboard = () => {
 
     setIsGeneratingQuiz(true);
     try {
-      // Use the same BACKEND_URL as other Flask API calls
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:5001/api';
-      const response = await fetch(`${BACKEND_URL}/backboard/generate-content`, {
+      const response = await fetch('http://localhost:5001/api/backboard/generate-content', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -412,6 +410,41 @@ const StudentDashboard = () => {
     }
   };
 
+  const handleQuizFinish = async (results) => {
+    const lectureId = getLectureId(selectedLecture);
+    
+    console.log("📊 Quiz Finished! Sending to MongoDB:", results);
+  
+    try {
+      const response = await fetch('http://localhost:5001/api/backboard/submit-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.id,
+          lectureId: lectureId,
+          score: results.score,
+          total: results.total,
+          percentage: results.percentage,
+          timestamp: new Date().toISOString()
+        }),
+      });
+  
+      if (response.ok) {
+        toast({
+          title: "Progress Saved!",
+          description: `You scored ${results.percentage}%`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to save quiz results:", error);
+      toast({
+        title: "Error",
+        description: "Could not save your results to the database.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -421,7 +454,7 @@ const StudentDashboard = () => {
             <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-semibold">Hi<span className="gradient-text">Ready</span></span>
+            <span className="font-semibold">Edu<span className="gradient-text">Pulse</span></span>
           </div>
           
           <div className="flex items-center gap-4">
@@ -594,7 +627,8 @@ const StudentDashboard = () => {
               {generatedQuiz && (
                 <QuizDisplay 
                   quizContent={generatedQuiz} 
-                  onClose={() => setGeneratedQuiz(null)} 
+                  onClose={() => setGeneratedQuiz(null)}
+                  onFinish={handleQuizFinish} 
                 />
               )}
             </div>

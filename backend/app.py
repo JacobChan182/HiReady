@@ -657,7 +657,7 @@ Use the get_video_rewind_data tool to fetch raw interaction data if needed, then
                 tool_outputs = []
 
                 for tc in response.tool_calls:
-                    if tc.function.name == "get_video_rewind_data":
+                    if (tc.function.name == "get_video_rewind_data"):
                         tool_outputs.append({
                             "tool_call_id": tc.id,
                             "output": str(interactions),
@@ -827,6 +827,28 @@ Use the get_video_rewind_data tool to fetch raw interaction data if needed, then
             "content": generated_content,
             "thread_id": str(thread.thread_id)
         })
+
+    @app.post('/api/quizzes')
+    def save_quiz():
+        """Store a parsed quiz in the database."""
+        data = request.get_json(force=True) or {}
+        questions = data.get("questions")
+        
+        if not questions:
+            return jsonify({"status": "error", "message": "No questions provided"}), 400
+
+        if db is not None:
+            try:
+                db.quizzes.insert_one({
+                    "questions": questions,
+                    "timestamp": datetime.now(UTC)
+                })
+                return jsonify({"status": "success"}), 201
+            except Exception as e:
+                print(f"⚠️ Failed to save quiz: {e}")
+                return jsonify({"status": "error", "message": str(e)}), 500
+        else:
+            return jsonify({"status": "error", "message": "Database not connected"}), 500
 
     @app.post('/api/index-video')
     def index_video():

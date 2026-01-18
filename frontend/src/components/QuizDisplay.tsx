@@ -16,16 +16,17 @@ interface QuizQuestion {
 interface QuizDisplayProps {
     quizContent: string | { questions: any[] };
     onClose: () => void;
+    // New prop to handle database submission
+    onFinish?: (results: { score: number; total: number; percentage: number }) => void;
 }
 
-const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
+const QuizDisplay = ({ quizContent, onClose, onFinish }: QuizDisplayProps) => {
     const [currentQuestion, setCurrentQuestion] = useState(0);
     const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
     const [showResults, setShowResults] = useState(false);
 
-    // Robust parsing logic inside useMemo to prevent unnecessary re-runs
+    // Robust parsing logic
     const questions = useMemo((): QuizQuestion[] => {
-        // 1. Handle JSON Object Input
         if (typeof quizContent === 'object' && quizContent.questions) {
             return quizContent.questions.map(q => ({
                 question: q.question,
@@ -37,11 +38,8 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
 
         const content = String(quizContent);
         const questionList: QuizQuestion[] = [];
-
-        // Split by any variation of "Question X" header
         let blocks = content.split(/(?=###?\s*Question\s*\d+)|(?=\*\*Question\s*\d+[:)]?\*\*)/i);
 
-        // Fallback: split by numbered questions like "1. **Question**"
         if (blocks.length <= 1) {
             blocks = content.split(/(?=^\s*\d+\.\s*\*\*.+\*\*)/m);
         }
@@ -51,33 +49,27 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
             if (!trimmedBlock || trimmedBlock.length < 20) return;
 
             const lines = trimmedBlock.split('\n').map(l => l.trim()).filter(Boolean);
-
             let questionText = "";
             const options: string[] = [];
             let correctAnswer = "";
             let parsingOptions = false;
 
             lines.forEach(line => {
-                // Skip the "Question X" header line itself or numbered bold header
                 if (/^(###?\s*)?Question\s*\d+/i.test(line)) return;
                 if (/^\d+\.\s*\*\*.+\*\*/.test(line)) {
-                    // Extract question text from bold numbered format
                     questionText += (questionText ? " " : "") + line.replace(/^\d+\.\s*\*\*|\*\*$/g, "");
                     return;
                 }
 
-                // Match options like "A) text", "a) text", or "- A) text"
                 const optionMatch = line.match(/^[-*]?\s*([A-Da-d])\)\s*(.*)/);
-                // Match answer keys like "**Answer:** B", "Answer: b", or "**Answer:** c) ..."
                 const answerMatch = line.match(/(?:\*\*)?Answer:(?:\*\*)?\s*([A-Da-d])/i);
 
                 if (optionMatch) {
                     parsingOptions = true;
-                    options.push(line.replace(/^[-*]\s*/, "")); // Normalize by removing bullets
+                    options.push(line.replace(/^[-*]\s*/, ""));
                 } else if (answerMatch) {
                     correctAnswer = answerMatch[1].toUpperCase();
                 } else if (!parsingOptions && !line.startsWith('---')) {
-                    // If we haven't hit options yet, this is the question text
                     questionText += (questionText ? " " : "") + line.replace(/^\*\*|\*\*$/g, "");
                 }
             });
@@ -86,7 +78,7 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
                 questionList.push({
                     question: questionText,
                     options,
-                    correctAnswer: correctAnswer || options[0].charAt(0).toUpperCase() // Fallback to first option letter
+                    correctAnswer: correctAnswer || options[0].charAt(0).toUpperCase()
                 });
             }
         });
@@ -100,7 +92,7 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
 
     const calculateScore = () => {
         return questions.reduce((score, q, idx) => {
-            const userSelection = selectedAnswers[idx]; // e.g., "B) Matrix M..."
+            const userSelection = selectedAnswers[idx];
             const userLetter = userSelection?.trim().charAt(0).toUpperCase();
             return userLetter === q.correctAnswer ? score + 1 : score;
         }, 0);
@@ -120,14 +112,29 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
         setShowResults(false);
     };
 
-    // Error State
+    // Final submission handler
+    const handleCompleteQuiz = () => {
+        const score = calculateScore();
+        const percentage = Math.round((score / questions.length) * 100);
+
+        // If the parent provided an onFinish function, call it with the results
+        if (onFinish) {
+            onFinish({
+                score,
+                total: questions.length,
+                percentage
+            });
+        }
+        
+        // Close the quiz display
+        onClose();
+    };
+
     if (questions.length === 0) {
         return (
             <Card className="glass-card p-6 border-red-500/50 bg-red-500/5">
                 <h3 className="text-xl font-bold mb-2">Quiz Parsing Error</h3>
-                <p className="text-muted-foreground mb-4 text-sm">
-                    We couldn't automatically format the quiz. You can read the raw content below:
-                </p>
+                <p className="text-muted-foreground mb-4 text-sm">We couldn't automatically format the quiz.</p>
                 <div className="bg-black/10 p-4 rounded-md text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto mb-4">
                     {String(quizContent)}
                 </div>
@@ -136,7 +143,6 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
         );
     }
 
-    // Results View
     if (showResults) {
         const score = calculateScore();
         const percentage = Math.round((score / questions.length) * 100);
@@ -150,7 +156,7 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
                         <p className="text-muted-foreground">Accuracy: {percentage}%</p>
                     </div>
 
-                    <div className="space-y-4 mb-6 max-h-[400px] overflow-y-auto pr-2">
+                    <div className="space-y-4 mb-6 max-h-[400px] overflow-y-auto pr-2 text-left">
                         {questions.map((q, idx) => {
                             const userSelection = selectedAnswers[idx];
                             const userLetter = userSelection?.trim().charAt(0).toUpperCase();
@@ -175,14 +181,13 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
 
                     <div className="flex gap-3">
                         <Button onClick={handleRestart} className="flex-1" variant="outline"><RotateCcw className="w-4 h-4 mr-2" /> Retry</Button>
-                        <Button onClick={onClose} className="flex-1 gradient-bg">Finish</Button>
+                        <Button onClick={handleCompleteQuiz} className="flex-1 gradient-bg">Finish</Button>
                     </div>
                 </Card>
             </motion.div>
         );
     }
 
-    // Question View
     const currentQ = questions[currentQuestion];
     return (
         <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
@@ -202,9 +207,10 @@ const QuizDisplay = ({ quizContent, onClose }: QuizDisplayProps) => {
                         exit={{ opacity: 0, x: -10 }}
                         className="min-h-[200px]"
                     >
-                        <h3 className="text-lg font-medium">
+                        <h3 className="text-lg font-medium mb-6 text-left">
                             <LatexRenderer text={currentQ.question} />
-                        </h3>            <div className="space-y-3">
+                        </h3>
+                        <div className="space-y-3">
                             {currentQ.options.map((option, idx) => (
                                 <button
                                     key={idx}

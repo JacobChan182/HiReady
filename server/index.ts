@@ -33,6 +33,7 @@ import loginsRoutes from './routes/logins';
 import coursesRoutes from './routes/courses';
 import studentsRoutes from './routes/students';
 import uploadRoutes from './routes/upload';
+import quizRoutes from './routes/quiz';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -46,12 +47,16 @@ const allowedOrigins = new Set([
   frontendUrl,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
   // Allow Vercel preview deployments
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
 ]);
 
 app.use(cors({
   origin: (origin, callback) => {
+    // This console log will help you see which origin is being blocked
+    console.log(`[CORS Check] Request from origin: ${origin}`);
     if (!origin || allowedOrigins.has(origin)) {
       return callback(null, true);
     }
@@ -61,6 +66,12 @@ app.use(cors({
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '500mb' }));
+
+// ADD THIS: Global request logger
+app.use((req, res, next) => {
+  console.log(`[Express Incoming] ${req.method} ${req.url}`);
+  next();
+});
 
 connectDB().catch(console.error);
 
@@ -72,7 +83,19 @@ app.use('/api/courses', coursesRoutes);
 app.use('/api/students', studentsRoutes);
 // Apply raw body parser only to direct upload endpoint
 app.use('/api/upload/direct', express.raw({ type: 'video/*', limit: '500mb' }));
-app.use('/api/upload', uploadRoutes);
+app.use('/api', uploadRoutes);
+
+// Register quiz directly to avoid nested path confusion
+app.post('/api/quizzes', async (req, res) => {
+    console.log('[Express Direct] Hit /api/quizzes with body:', req.body);
+    try {
+        const { Quiz } = await import('./models/Quiz');
+        const saved = await Quiz.insertMany(req.body.results);
+        res.status(201).json({ success: true, count: saved.length });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 // health check endpoint
 app.get('/health', (req, res) => {
