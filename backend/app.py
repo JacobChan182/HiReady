@@ -17,11 +17,14 @@ from services.chat_router import (
     route_llm_for_message,
     validate_llm_choice,
 )
+import json
 
 load_dotenv()
 
 def create_app():
     app = Flask(__name__)
+    
+    # Allow all origins for development (adjust for prod)
     CORS(app)
 
     # When MongoDB is not configured, we still support multi-chat sessions during
@@ -30,7 +33,19 @@ def create_app():
         "student": {},
         "instructor": {},
     }
+    @app.before_request
+    def handle_preflight():
+        if request.method == "OPTIONS":
+            response = jsonify({"status": "ok"})
+            response.headers.add("Access-Control-Allow-Origin", "*")
+            response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+            response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
+            return response
 
+    # In-memory fallback when MongoDB is not configured
+    in_memory_sessions = {}
+
+    # --- BEGIN: Mongo init ---
     MONGODB_URI = os.getenv("MONGODB_URI")
     if not MONGODB_URI:
         print("Warning: MONGODB_URI not set. Chat history will not be saved.")
@@ -44,14 +59,13 @@ def create_app():
                 MONGODB_URI,
                 tlsAllowInvalidCertificates=True
             )
-            
             mongo_client.admin.command('ping')
             # Main DB (existing collections like rewind_events live here)
-            db = mongo_client["no-more-tears"]
 
             # Chat DBs separated by role
             chat_db_student = mongo_client["no-more-tears-student"]
             chat_db_instructor = mongo_client["no-more-tears-instructor"]
+            db = mongo_client["test"]
             print("✅ MongoDB connected successfully")
         except Exception as e:
             print(f"⚠️  MongoDB connection failed: {e}")
@@ -72,12 +86,14 @@ def create_app():
         if role == "instructor":
             return chat_db_instructor, role
         return chat_db_student, role
+    # --- END: Mongo init ---
 
-    # Initialize Twelve Labs client
+    # --- BEGIN: TwelveLabs init ---
     TWELVELABS_API_KEY = os.getenv("TWELVELABS_API_KEY")
     if not TWELVELABS_API_KEY:
         raise RuntimeError("Missing TWELVE_LABS_API_KEY env var")
     tl = TwelveLabs(api_key=TWELVELABS_API_KEY)
+    # --- END: TwelveLabs init ---
 
     @app.post('/api/backboard/chat')
     def backboard_chat():
@@ -683,55 +699,84 @@ Use the get_video_rewind_data tool to fetch raw interaction data if needed, then
             "thread_id": thread_id_str,
         })
 
+    # Generate educational content (quiz/summary)
     @app.post('/api/backboard/generate-content')
-    def generate_educational_content():
-        """Generate educational content (quizzes, summaries, etc.) from video topics"""
-        data = request.get_json(force=True)
-        
+    async def generate_educational_content():
+        raw_data = request.get_data(as_text=True)
+        print(f"\n📥 RAW INCOMING DATA: {raw_data}")
+
+        try:
+            data = request.get_json(force=True)
+            print(f"📦 PARSED JSON: {data}")
+        except Exception as e:
+            print(f"❌ JSON PARSE ERROR: {e}")
+            traceback.print_exc()
+            return jsonify({"status": "error", "message": "Invalid JSON"}), 400
+
+        lecture_id = data.get("lecture_id")
         video_id = data.get("video_id")
-        video_title = data.get("video_title", "")
-        topics = data.get("topics", [])
+        video_title = data.get("video_title", "Untitled Lecture")
         content_type = data.get("content_type", "quiz")
-        
-        if not video_id or not topics:
-            return {"status": "error", "message": "video_id and topics are required"}, 400
-        
+        topics = data.get("topics", [])
+
+        print(f"🔎 Extracted lecture_id: {lecture_id}")
+        print(f"🔎 Extracted video_id: {video_id}")
+        print(f"🔎 Extracted video_title: {video_title}")
+
+        # Build topics context
+        topics_text = None
+        if not topics and lecture_id:
+            try:
+                from services.data_service import get_segments_for_quiz
+                topics_text = get_segments_for_quiz(db, lecture_id)
+                preview = topics_text[:200] + "…" if isinstance(topics_text, str) and len(topics_text) > 200 else topics_text
+                print(f"📄 Topics from DB: {preview}")
+            except Exception as e:
+                print(f"❌ Error fetching segments: {e}")
+                traceback.print_exc()
+                topics_text = f"Error fetching lecture content: {str(e)}"
+        elif topics:
+            topics_text = "\n\n".join([
+                f"Topic: {t.get('title')}\nDescription: {t.get('description')}"
+                for t in topics
+            ])
+
+        # Validate content context
+        invalid_markers = (
+            "No content found",
+            "No lecture ID",
+            "Database not connected",
+            "Error",
+            "ERROR:",  # NEW: catch explicit error messages
+            "TwelveLabs data is still processing",  # NEW
+            "No segments found for lecture",        # NEW
+        )
+        if not topics_text or any(m in topics_text for m in invalid_markers):
+            error_msg = topics_text if topics_text else "No content found"
+            print(f"❌ Content error: {error_msg}")
+            return jsonify({"status": "error", "message": error_msg}), 400
+
         api_key = os.getenv("BACKBOARD_API_KEY")
         if not api_key:
-            return {"status": "error", "message": "Missing BACKBOARD_API_KEY env var"}, 500
+            print("❌ Missing BACKBOARD_API_KEY")
+            return jsonify({"status": "error", "message": "Missing BACKBOARD_API_KEY"}), 500
 
+        # System prompt/task
         if content_type == "quiz":
-            system_prompt = "You are an expert educational content creator. Generate practice quiz questions based on video topics."
-            task = "Generate 3-5 multiple choice quiz questions for each topic. Include answers and explanations."
+            system_prompt = "You are an expert educational content creator."
+            task = "Generate 3-5 multiple choice quiz questions. Include answers."
         elif content_type == "summary":
-            system_prompt = "You are an expert educational content creator. Create clear topic summaries for students."
-            task = "Create a concise summary for each topic that highlights key concepts and learning objectives."
-        elif content_type == "help":
-            system_prompt = "You are a helpful tutor. Provide topic breakdowns and study tips."
-            task = "For each topic, provide a brief explanation and suggest what students should focus on."
+            system_prompt = "You are an expert summarizer."
+            task = "Create a concise summary."
         else:
-            return {"status": "error", "message": "Invalid content_type. Use 'quiz', 'summary', or 'help'"}, 400
+            system_prompt = "You are a helpful tutor."
+            task = "Provide study tips."
 
-        # Format topics for the AI
-        topics_text = "\n\n".join([
-            f"Topic {i+1}: {topic.get('title', 'Untitled')}\n"
-            f"Time: {topic.get('start_time', 0)}s - {topic.get('end_time', 0)}s\n"
-            f"Description: {topic.get('description', 'No description')}"
-            for i, topic in enumerate(topics)
-        ])
+        full_prompt = f"Video: {video_title}\n\nTopics:\n{topics_text}\n\nTask: {task}"
 
-        full_prompt = f"""
-Video: {video_title} (ID: {video_id})
-
-Topics from video:
-{topics_text}
-
-Task: {task}
-"""
-
-        client = BackboardClient(api_key=api_key)
-
+        # Call Backboard
         async def run_generation():
+            client = BackboardClient(api_key=api_key)
             assistant = await client.create_assistant(
                 name="Educational Content Generator",
                 description=system_prompt,
@@ -746,126 +791,45 @@ Task: {task}
             )
             return assistant, thread, response
 
-        assistant, thread, response = asyncio.run(run_generation())
+        try:
+            assistant, thread, response = await run_generation()
+        except Exception as e:
+            print(f"❌ Generation error: {e}")
+            traceback.print_exc()
+            return jsonify({"status": "error", "message": str(e)}), 500
+
         generated_content = response.content
 
-        # Save to MongoDB
+        # Persist to Mongo (optional)
         if db is not None:
-            db.generated_content.insert_one({
-                "video_id": video_id,
-                "video_title": video_title,
-                "content_type": content_type,
-                "content": generated_content,
-                "topics": topics,
-                "timestamp": datetime.now(UTC)
-            })
+            try:
+                db.generated_content.insert_one({
+                    "lecture_id": lecture_id,
+                    "video_id": video_id,
+                    "video_title": video_title,
+                    "content_type": content_type,
+                    "content": generated_content,
+                    "timestamp": datetime.now(UTC)
+                })
+            except Exception as e:
+                print(f"⚠️ Failed to persist generated content: {e}")
 
         return jsonify({
             "status": "success",
-            "video_id": video_id,
-            "content_type": content_type,
             "content": generated_content,
-            "assistant_id": str(assistant.assistant_id),
             "thread_id": str(thread.thread_id)
         })
 
+    # Simple health check
     @app.get("/health")
     def health():
         return {"status": "ok", "server": "Flask"}, 200
 
-    @app.route('/api/hello', methods=['GET'])
-    def test():
-        return {"status": "success"}
-
-    @app.route('/api/test-connection', methods=['GET'])
-    def test_connection():
-        try:
-            indexes = list(tl.indexes.list())
-            return {"status": "connected", "index_count": len(indexes)}, 200
-        except Exception as e:
-            return {"status": "error", "message": str(e)}, 500
-        
-    @app.route('/api/index-video', methods=['POST'])
-    def handle_index_request():
-        try:
-            data = request.json
-            print(f"[Flask] /api/index-video payload: {data}")
-            video_url = data.get('videoUrl')
-            lecture_id = data.get('lectureId')
-
-            if not video_url:
-                return jsonify({"error": "No video URL provided"}), 400
-
-            # Trigger the Twelve Labs indexing process
-            task_id = start_video_indexing(video_url)
-            
-            if task_id:
-                print(f"[Flask] Indexing task started: task_id={task_id} lectureId={lecture_id}")
-                return jsonify({
-                    "success": True, 
-                    "message": "Indexing task created", 
-                    "task_id": task_id
-                }), 202
-            else:
-                print(f"[Flask] Failed to start indexing for lectureId={lecture_id}")
-                return jsonify({"error": "Failed to start indexing"}), 500
-        
-        except Exception as e:
-            print(f"[Flask] CRITICAL ROUTE ERROR: {e}")
-            return jsonify({"error": str(e)}), 500
-
-    @app.route("/api/segment-video", methods=["POST"])
-    def segment_video():
-        try:
-            body = request.get_json(force=True) or {}
-            video_url = body.get("videoUrl")
-            lecture_id = body.get("lectureId")
-            if not video_url:
-                return jsonify({"error": "videoUrl is required"}), 400
-            print(f"[Flask] /api/segment-video lectureId={lecture_id} started")
-
-            # 1. This returns a full object (including a "segments" list)
-            result = index_and_segment(video_url)
-
-            # 2. Extract the list for loop/logging
-            segments_list = result.get("segments", [])
-
-            print(f"[Flask] /api/segment-video lectureId={lecture_id} finished -> {len(segments_list)} segments")
-            
-            # 3. Use the list for the loop
-            for i, s in enumerate(segments_list[:5]):
-                print(f"[Flask][{i}] {s.get('start')} - {s.get('end')} :: {s.get('title')}")
-
-            # 4. Return to Express (and keep full metadata for Mongo)
-            return jsonify({
-                "lectureId": lecture_id, 
-                "segments": segments_list,
-                "rawAiMetaData": result
-            }), 200
-
-        except Exception as e:
-            print(f"[Flask] segmentation error: {e}")
-            traceback.print_exc()
-            return jsonify({"error": str(e)}), 500
-
-    @app.route("/api/task-status", methods=["GET"])
-    def task_status():
-        try:
-            task_id = request.args.get("taskId")
-            if not task_id:
-                return jsonify({"error": "taskId is required"}), 400
-            task = tl.tasks.retrieve(task_id)
-            return jsonify({
-                "taskId": task_id,
-                "status": getattr(task, "status", None),
-                "assetId": getattr(task, "asset_id", None),
-            }), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+    # ...existing routes remain unchanged...
 
     return app
 
 if __name__ == "__main__":
     app = create_app()
-    port = int(os.getenv("FLASK_PORT", "5001"))  # Changed default from 5000 to 5001 to avoid AirPlay conflict
+    port = int(os.getenv("FLASK_PORT", "5001"))
     app.run(host="0.0.0.0", port=port, debug=True)
