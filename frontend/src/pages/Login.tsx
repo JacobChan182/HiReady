@@ -105,7 +105,7 @@ const Login = () => {
               <Zap className="w-7 h-7 text-primary-foreground" />
             </div>
             <span className="text-3xl font-bold text-white">
-              Hi<span className="gradient-text">Ready</span>.tech
+              <span className="gradient-text">HiRe</span>ady.tech
             </span>
           </motion.div>
           <p className="text-slate-400 text-lg max-w-md mx-auto">
