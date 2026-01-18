@@ -54,6 +54,7 @@ router.get('/:userId/courses', async (req: Request, res: Response) => {
         videoUrl: lecture.videoUrl || '',
         duration: 0, // Duration not stored in DB, will need to be calculated or stored
         concepts: [], // Concepts not stored in DB, will need separate fetch
+        lectureSegments: lecture.lectureSegments || [], // Include segments from DB
         uploadedAt: lecture.createdAt ? new Date(lecture.createdAt) : new Date(),
       }))
     );

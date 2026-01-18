@@ -28,6 +28,13 @@ export interface Concept {
   lectureId: string;
 }
 
+export interface LectureSegment {
+  start: number;
+  end: number;
+  title: string;
+  summary: string;
+}
+
 export interface Lecture {
   id: string;
   title: string;
@@ -35,6 +42,7 @@ export interface Lecture {
   videoUrl: string;
   duration: number;
   concepts: Concept[];
+  lectureSegments?: LectureSegment[];
   uploadedAt: Date;
 }
 

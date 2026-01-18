@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAnalytics } from '@/contexts/AnalyticsContext';
 import { mockLectures, mockCourses, enrichLecturesWithMockData } from '@/data/mockData';
 import { getStudentCourses, getVideoStreamUrl } from '@/lib/api';
-import { Concept, Lecture, Course } from '@/types';
+import { Concept, Lecture, Course, LectureSegment } from '@/types';
 import { 
   Play, Pause, SkipForward, Search, Sparkles, Clock, 
   BookOpen, ChevronRight, Zap, LogOut, User, ChevronDown
@@ -36,6 +36,7 @@ const StudentDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSummary, setShowSummary] = useState(false);
   const [activeConcept, setActiveConcept] = useState<Concept | null>(null);
+  const [activeSegment, setActiveSegment] = useState<LectureSegment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isLoadingStream, setIsLoadingStream] = useState(false);
@@ -248,6 +249,7 @@ const StudentDashboard = () => {
       previousTimeRef.current = 0;
       setCurrentTime(0);
       setVideoDuration(0); // Reset duration, will be set when video metadata loads
+      setActiveSegment(null); // Reset active segment
     }
   }, [selectedLecture?.id]);
 
@@ -263,16 +265,49 @@ const StudentDashboard = () => {
     }
   }, [currentTime, selectedLecture, activeConcept]);
 
-  const handlePlayPause = () => {
-    if (videoRef.current && selectedLecture) {
+  // Track current segment based on video time
+  useEffect(() => {
+    if (selectedLecture && selectedLecture.lectureSegments) {
+      const segment = selectedLecture.lectureSegments.find(
+        s => currentTime >= s.start && currentTime < s.end
+      );
+      if (segment) {
+        // Only update if the segment title changed to avoid unnecessary re-renders
+        setActiveSegment(prev => {
+          if (prev?.title !== segment.title) {
+            return segment;
+          }
+          return prev;
+        });
+      } else {
+        // Only clear if there was an active segment
+        setActiveSegment(prev => prev ? null : prev);
+      }
+    } else {
+      setActiveSegment(null);
+    }
+  }, [currentTime, selectedLecture]);
+
+  const handlePlayPause = async () => {
+    if (!videoRef.current || !selectedLecture) return;
+    
+    try {
       if (isPlaying) {
         videoRef.current.pause();
-        trackEvent('pause', selectedLecture.id, activeConcept?.id);
+        // onPause handler will set isPlaying to false
       } else {
-        videoRef.current.play();
-        trackEvent('play', selectedLecture.id, activeConcept?.id);
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+          // onPlay handler will set isPlaying to true
+        }
       }
-      setIsPlaying(!isPlaying);
+    } catch (error) {
+      console.error('Error in handlePlayPause:', error);
+      // If play fails (e.g., autoplay policy), keep state as paused
+      if (!isPlaying) {
+        setIsPlaying(false);
+      }
     }
   };
 
@@ -312,6 +347,7 @@ const StudentDashboard = () => {
       }
     }
   };
+
 
   const handleTimeUpdate = () => {
     if (videoRef.current && selectedLecture) {
@@ -521,20 +557,49 @@ const StudentDashboard = () => {
                             setVideoDuration(videoRef.current.duration || 0);
                           }
                         }}
+                        onClick={(e) => {
+                          // Prevent default click behavior that might pause video
+                          e.stopPropagation();
+                          if (!isPlaying && videoRef.current) {
+                            handlePlayPause();
+                          }
+                        }}
+                        onPlay={() => {
+                          console.log('Video play event fired');
+                          setIsPlaying(true);
+                          if (selectedLecture) {
+                            trackEvent('play', selectedLecture.id, activeConcept?.id);
+                          }
+                        }}
+                        onPause={(e) => {
+                          console.log('Video pause event fired', e);
+                          setIsPlaying(false);
+                          if (selectedLecture) {
+                            trackEvent('pause', selectedLecture.id, activeConcept?.id);
+                          }
+                        }}
                         onEnded={() => setIsPlaying(false)}
+                        onError={(e) => {
+                          console.error('Video error:', e);
+                          console.error('Video src:', streamUrl || selectedLecture.videoUrl);
+                          setIsPlaying(false);
+                        }}
                         preload="metadata"
                         playsInline
                         crossOrigin="anonymous"
                       />
                     )}
                   
-                  {/* Play overlay */}
+                  {/* Play overlay - only show when paused */}
                   {!isPlaying && (
                     <div 
-                      className="absolute inset-0 flex items-center justify-center bg-secondary/50 cursor-pointer"
-                      onClick={handlePlayPause}
+                      className="absolute inset-0 flex items-center justify-center bg-secondary/50 cursor-pointer z-10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePlayPause();
+                      }}
                     >
-                      <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center glow">
+                      <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center glow pointer-events-none">
                         <Play className="w-8 h-8 text-primary-foreground ml-1" />
                       </div>
                     </div>
@@ -546,12 +611,29 @@ const StudentDashboard = () => {
                       key={activeConcept.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="absolute bottom-4 left-4 right-4"
+                      className="absolute bottom-4 left-4 right-4 pointer-events-none z-10"
                     >
                       <div className="glass-card px-4 py-2 rounded-lg">
                         <div className="flex items-center gap-2">
                           <BookOpen className="w-4 h-4 text-primary" />
                           <span className="text-sm font-medium">{activeConcept.name}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Current segment overlay */}
+                  {activeSegment && activeSegment.title && (
+                    <motion.div
+                      key={activeSegment.title}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute top-4 left-4 right-4 pointer-events-none z-10"
+                    >
+                      <div className="glass-card px-4 py-2 rounded-lg border border-primary/30">
+                        <div className="flex items-center gap-2">
+                          <SkipForward className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-semibold">{activeSegment.title}</span>
                         </div>
                       </div>
                     </motion.div>
@@ -569,11 +651,89 @@ const StudentDashboard = () => {
                       {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                     </Button>
                     
-                    <div className="flex-1">
+                    <div 
+                      className="flex-1 relative cursor-pointer"
+                      onClick={(e) => {
+                        if (videoRef.current && videoDuration > 0) {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const clickX = e.clientX - rect.left;
+                          const percent = clickX / rect.width;
+                          const newTime = percent * videoDuration;
+                          
+                          if (videoRef.current) {
+                            const previousTime = previousTimeRef.current;
+                            videoRef.current.currentTime = newTime;
+                            previousTimeRef.current = newTime;
+                            setCurrentTime(newTime);
+                            
+                            // Track rewind if seeking backwards
+                            if (newTime < previousTime && trackRewind && course && selectedLecture) {
+                              trackRewind(
+                                selectedLecture.id,
+                                selectedLecture.title,
+                                course.id,
+                                {
+                                  fromTime: previousTime,
+                                  toTime: newTime,
+                                  rewindAmount: previousTime - newTime,
+                                  fromConceptId: activeConcept?.id,
+                                  fromConceptName: activeConcept?.name,
+                                }
+                              );
+                            }
+                            
+                            trackEvent('seek', selectedLecture.id, undefined, { action: 'progress-bar-seek' });
+                          }
+                        }
+                      }}
+                    >
                       <Progress 
                         value={videoDuration > 0 ? (currentTime / videoDuration) * 100 : 0}
                         className="h-2"
                       />
+                      {/* Segment markers on progress bar */}
+                      {selectedLecture.lectureSegments && selectedLecture.lectureSegments.length > 0 && (
+                        <>
+                          {/* Vertical divider lines */}
+                          <div className="absolute top-0 left-0 right-0 h-2 pointer-events-none">
+                            {selectedLecture.lectureSegments.map((segment, i) => {
+                              const segmentStartPercent = videoDuration > 0 ? (segment.start / videoDuration) * 100 : 0;
+                              return (
+                                <div
+                                  key={i}
+                                  className="absolute top-0 bottom-0 w-px bg-border/50"
+                                  style={{ left: `${segmentStartPercent}%` }}
+                                />
+                              );
+                            })}
+                          </div>
+                          {/* Hoverable segment areas with tooltips */}
+                          <div className="absolute top-0 left-0 right-0 h-2 pointer-events-none">
+                            {selectedLecture.lectureSegments.map((segment, i) => {
+                              const segmentStartPercent = videoDuration > 0 ? (segment.start / videoDuration) * 100 : 0;
+                              const segmentEndPercent = videoDuration > 0 ? (segment.end / videoDuration) * 100 : 0;
+                              const segmentWidth = segmentEndPercent - segmentStartPercent;
+                              return (
+                                <div
+                                  key={i}
+                                  className="absolute top-0 bottom-0 group"
+                                  style={{ 
+                                    left: `${segmentStartPercent}%`,
+                                    width: `${segmentWidth}%`
+                                  }}
+                                >
+                                  {/* Tooltip label */}
+                                  <div className="absolute top-full left-0 mt-2 hidden group-hover:block z-20 pointer-events-none">
+                                    <div className="bg-popover text-popover-foreground text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap border border-border">
+                                      {segment.title}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
                     </div>
                     
                     <span className="text-sm font-mono text-muted-foreground">
