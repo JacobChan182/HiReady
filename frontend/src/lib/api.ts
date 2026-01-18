@@ -766,3 +766,25 @@ export const getLectureWatchProgress = async (lectureId: string) => {
     return { success: false, data: null };
   }
 };
+
+// Get segment rewind counts for a lecture (for instructor view)
+export const getLectureSegmentRewinds = async (lectureId: string) => {
+  try {
+    const response = await fetch(`${API_URL}/analytics/lecture/${lectureId}/segment-rewinds`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      return { success: false, data: null };
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.debug('Segment rewinds not available:', error);
+    return { success: false, data: null };
+  }
+};

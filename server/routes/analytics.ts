@@ -16,6 +16,15 @@ router.post('/rewind', async (req: Request, res: Response) => {
       rewindEvent,
     } = req.body;
 
+    console.log('[rewind] incoming', {
+      userId,
+      pseudonymId,
+      lectureId,
+      lectureTitle,
+      courseId,
+      rewindEvent,
+    });
+
     if (!userId || !lectureId || !rewindEvent) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -38,7 +47,12 @@ router.post('/rewind', async (req: Request, res: Response) => {
           lastAccessedAt: new Date(),
         }],
       });
+      newStudent.markModified('lectures');
       await newStudent.save();
+      console.log('[rewind] created student and stored rewind', {
+        userId,
+        lectureId,
+      });
     } else {
       // Update existing student
       const lectureProgress = student.lectures.find(l => l.lectureId === lectureId);
@@ -59,7 +73,13 @@ router.post('/rewind', async (req: Request, res: Response) => {
         lectureProgress.lastAccessedAt = new Date();
       }
       
+      student.markModified('lectures');
       await student.save();
+      console.log('[rewind] updated student rewind', {
+        userId,
+        lectureId,
+        totalRewinds: lectureProgress?.rewindEvents?.length || 0,
+      });
     }
 
     // Update Course collection
@@ -87,6 +107,7 @@ router.post('/rewind', async (req: Request, res: Response) => {
             rewindEvents: [rewindEvent],
           }],
         });
+        course.markModified('lectures');
         await course.save();
       } else {
         // Lecture exists, add rewind event
@@ -106,7 +127,12 @@ router.post('/rewind', async (req: Request, res: Response) => {
           studentRewindData.rewindEvents.push(rewindEvent);
         }
         
+        course.markModified('lectures');
         await course.save();
+        console.log('[rewind] updated course lecture rewind', {
+          courseId,
+          lectureId,
+        });
       }
     }
 
@@ -267,6 +293,76 @@ router.get('/lecture/:lectureId/watch-progress', async (req: Request, res: Respo
   } catch (error) {
     console.error('Error getting watch progress:', error);
     res.status(500).json({ error: 'Failed to get watch progress' });
+  }
+});
+
+// Get segment rewind counts for a lecture (for instructor view)
+router.get('/lecture/:lectureId/segment-rewinds', async (req: Request, res: Response) => {
+  try {
+    const lectureId = Array.isArray(req.params.lectureId)
+      ? req.params.lectureId[0]
+      : req.params.lectureId;
+
+    const course = await Course.findOne({ 'lectures.lectureId': lectureId });
+    const lecture = course?.lectures.find(l => l.lectureId === lectureId);
+
+    if (!course || !lecture) {
+      return res.status(404).json({ error: 'Lecture not found' });
+    }
+
+    const segments = Array.isArray(lecture.rawAiMetaData?.segments)
+      ? lecture.rawAiMetaData.segments
+      : [];
+
+    const counts = new Array(segments.length).fill(0);
+
+    // Pull rewind events from Student records for accuracy
+    const students = await Student.find({ 'lectures.lectureId': lectureId }, { lectures: 1, _id: 0 });
+
+    let totalRewinds = 0;
+
+    students.forEach((student) => {
+      const lectureProgress = student.lectures.find(l => l.lectureId === lectureId);
+      if (!lectureProgress) return;
+
+      (lectureProgress.rewindEvents || []).forEach((event: any) => {
+        const toTime = typeof event?.toTime === 'number' ? event.toTime : null;
+        if (toTime === null) return;
+
+        const idx = segments.findIndex((seg: any) => {
+          const start = typeof seg?.start === 'number' ? seg.start : seg?.startTime || 0;
+          const end = typeof seg?.end === 'number' ? seg.end : seg?.endTime || 0;
+          return toTime >= start && toTime < end;
+        });
+
+        if (idx >= 0) {
+          counts[idx] += 1;
+          totalRewinds += 1;
+        }
+      });
+    });
+
+    const fallbackCounts = segments.map((seg: any) => seg?.count ?? 0);
+    const finalCounts = totalRewinds > 0 ? counts : fallbackCounts;
+
+    const responseSegments = segments.map((seg: any, index: number) => ({
+      start: seg.start ?? seg.startTime ?? 0,
+      end: seg.end ?? seg.endTime ?? 0,
+      title: seg.title ?? seg.name ?? 'Untitled Segment',
+      summary: seg.summary ?? '',
+      count: finalCounts[index] || 0,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        lectureId,
+        segments: responseSegments,
+      },
+    });
+  } catch (error) {
+    console.error('Error getting segment rewinds:', error);
+    res.status(500).json({ error: 'Failed to get segment rewinds' });
   }
 });
 

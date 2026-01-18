@@ -108,12 +108,66 @@ export const mockLectures: Lecture[] = [
 ];
 
 // Transform MongoDB course data to Lecture format
-export const transformCourseLectures = (courseData: any): Lecture[] => {
+type CourseDataInput = {
+  courseId?: string;
+  lectures?: Array<{
+    lectureId?: string;
+    lectureTitle?: string;
+    courseId?: string;
+    videoUrl?: string;
+    createdAt?: string | Date;
+  }>;
+};
+
+type InstructorLectureInput = {
+  lectureId?: string;
+  lectureTitle?: string;
+  courseId?: string;
+  videoUrl?: string;
+  createdAt?: string | Date;
+  rawAiMetaData?: {
+    segments?: Array<{
+      start?: number;
+      end?: number;
+      title?: string;
+      summary?: string;
+      count?: number;
+    }>;
+  };
+};
+
+type InstructorLecturesResponse = {
+  data?: {
+    lectures?: InstructorLectureInput[];
+    courses?: Array<Record<string, unknown>>;
+  };
+};
+
+type LectureInput = {
+  id?: string;
+  lectureId?: string;
+  title?: string;
+  lectureTitle?: string;
+  courseId?: string;
+  videoUrl?: string;
+  duration?: number;
+  concepts?: Concept[];
+  lectureSegments?: Array<{
+    start?: number;
+    end?: number;
+    title?: string;
+    summary?: string;
+    count?: number;
+  }>;
+  uploadedAt?: Date;
+};
+
+export const transformCourseLectures = (courseData: CourseDataInput): Lecture[] => {
   if (!courseData?.lectures || !Array.isArray(courseData.lectures)) {
     return [];
   }
 
-  return courseData.lectures.map((lecture: any) => ({
+  return courseData.lectures.map((lecture) => ({
     id: lecture.lectureId,
     title: lecture.lectureTitle,
     courseId: lecture.courseId || courseData.courseId,
@@ -125,7 +179,7 @@ export const transformCourseLectures = (courseData: any): Lecture[] => {
 };
 
 // Transform aggregated instructor lectures response
-export const transformInstructorLectures = (responseData: any): { lectures: Lecture[], courses: any[] } => {
+export const transformInstructorLectures = (responseData: InstructorLecturesResponse): { lectures: Lecture[], courses: Array<Record<string, unknown>> } => {
   if (!responseData?.data) {
     return { lectures: [], courses: [] };
   }
@@ -133,10 +187,10 @@ export const transformInstructorLectures = (responseData: any): { lectures: Lect
   const allLectures = responseData.data.lectures || [];
   const courses = responseData.data.courses || [];
 
-  const transformedLectures: Lecture[] = allLectures.map((lecture: any) => {
+  const transformedLectures: Lecture[] = allLectures.map((lecture) => {
     // Extract segments from rawAiMetaData
     const segments = lecture.rawAiMetaData?.segments || [];
-    const lectureSegments = segments.map((seg: any) => ({
+    const lectureSegments = segments.map((seg) => ({
       start: seg.start || 0,
       end: seg.end || 0,
       title: seg.title || 'Untitled Segment',
@@ -160,7 +214,7 @@ export const transformInstructorLectures = (responseData: any): { lectures: Lect
 };
 
 // Helper to merge real lectures with mock data (for concepts, duration, etc.)
-export const enrichLecturesWithMockData = (lectures: any[]): Lecture[] => {
+export const enrichLecturesWithMockData = (lectures: LectureInput[]): Lecture[] => {
   return lectures.map((lec) => {
     const lectureId = lec.lectureId || lec.id;
     console.log('🔧 Enriching lecture:', {
@@ -181,7 +235,15 @@ export const enrichLecturesWithMockData = (lectures: any[]): Lecture[] => {
       title: lec.title || lec.lectureTitle || 'Untitled',
       lectureTitle: lec.lectureTitle || lec.title || 'Untitled',
       // Preserve real segments from input, don't use mock
-      lectureSegments: Array.isArray(lec.lectureSegments) ? lec.lectureSegments : [],
+      lectureSegments: Array.isArray(lec.lectureSegments)
+        ? lec.lectureSegments.map((seg) => ({
+            start: seg.start ?? 0,
+            end: seg.end ?? 0,
+            title: seg.title ?? 'Untitled Segment',
+            summary: seg.summary ?? '',
+            count: seg.count ?? 0,
+          }))
+        : [],
       // Only add mock concepts if none exist
       concepts: (lec.concepts && lec.concepts.length > 0) 
         ? lec.concepts 

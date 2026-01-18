@@ -483,6 +483,13 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
                   
                   // Track rewind if seeking backwards
                   if (newTime < previousTime && trackRewind && course && lecture) {
+                    const previousConcept = lecture.concepts.find(
+                      c => previousTime >= c.startTime && previousTime < c.endTime
+                    );
+                    const newConcept = lecture.concepts.find(
+                      c => newTime >= c.startTime && newTime < c.endTime
+                    );
+
                     trackRewind(
                       lecture.id,
                       lecture.title,
@@ -491,8 +498,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
                         fromTime: previousTime,
                         toTime: newTime,
                         rewindAmount: previousTime - newTime,
-                        fromConceptId: activeConcept?.id,
-                        fromConceptName: activeConcept?.name,
+                        fromConceptId: previousConcept?.id,
+                        fromConceptName: previousConcept?.name,
+                        toConceptId: newConcept?.id,
+                        toConceptName: newConcept?.name,
                       }
                     );
                   }
@@ -545,9 +554,35 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ lecture, cou
                             const percent = clickX / rect.width;
                             const newTime = percent * videoDuration;
                             
+                            const previousTime = previousTimeRef.current;
                             videoRef.current.currentTime = newTime;
                             previousTimeRef.current = newTime;
                             setCurrentTime(newTime);
+
+                            if (newTime < previousTime && trackRewind && course && lecture) {
+                              const previousConcept = lecture.concepts.find(
+                                c => previousTime >= c.startTime && previousTime < c.endTime
+                              );
+                              const newConcept = lecture.concepts.find(
+                                c => newTime >= c.startTime && newTime < c.endTime
+                              );
+
+                              trackRewind(
+                                lecture.id,
+                                lecture.title,
+                                course.id,
+                                {
+                                  fromTime: previousTime,
+                                  toTime: newTime,
+                                  rewindAmount: previousTime - newTime,
+                                  fromConceptId: previousConcept?.id,
+                                  fromConceptName: previousConcept?.name,
+                                  toConceptId: newConcept?.id,
+                                  toConceptName: newConcept?.name,
+                                }
+                              );
+                            }
+
                             trackEvent('seek', lecture.id, undefined, { action: 'segment-seek' });
                           }
                         }}

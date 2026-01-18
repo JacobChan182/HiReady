@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { mockLectures, mockCourses, calculateConceptInsights, calculateClusterInsights, mockStudents, transformInstructorLectures, enrichLecturesWithMockData } from '@/data/mockData';
-import { getInstructorLectures, createCourse, updateCourse, getCourseStudents, addStudentsToCourse, removeStudentFromCourse, getLectureWatchProgress } from '@/lib/api';
+import { getInstructorLectures, createCourse, updateCourse, getCourseStudents, addStudentsToCourse, removeStudentFromCourse, getLectureWatchProgress, getLectureSegmentRewinds } from '@/lib/api';
 import { Lecture } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -83,6 +83,9 @@ const InstructorDashboard = () => {
   const [watchProgressData, setWatchProgressData] = useState<{
     retentionData?: Array<{ time: number; viewers: number; retention: number }>;
     totalStudents?: number;
+  } | null>(null);
+  const [segmentRewindData, setSegmentRewindData] = useState<{
+    segments: Array<{ start: number; end: number; title: string; summary: string; count?: number }>;
   } | null>(null);
   const [isLoadingWatchProgress, setIsLoadingWatchProgress] = useState(false);
 
@@ -218,6 +221,48 @@ const InstructorDashboard = () => {
     };
 
     fetchWatchProgress();
+  }, [selectedLecture]);
+
+  // Fetch segment rewind counts when selected lecture changes
+  useEffect(() => {
+    let isMounted = true;
+    let intervalId: number | undefined;
+
+    const fetchSegmentRewinds = async () => {
+      if (!selectedLecture) {
+        if (isMounted) setSegmentRewindData(null);
+        return;
+      }
+
+      try {
+        const response = await getLectureSegmentRewinds(selectedLecture.id);
+        if (!isMounted) return;
+        if (response && response.success && response.data) {
+          setSegmentRewindData({ segments: response.data.segments || [] });
+        } else {
+          setSegmentRewindData(null);
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        console.debug('Segment rewind data not available:', error);
+        setSegmentRewindData(null);
+      }
+    };
+
+    fetchSegmentRewinds();
+
+    intervalId = window.setInterval(fetchSegmentRewinds, 10000);
+
+    const handleFocus = () => {
+      fetchSegmentRewinds();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isMounted = false;
+      if (intervalId) window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [selectedLecture]);
 
   const conceptInsights = useMemo(() => calculateConceptInsights(), []);
@@ -830,56 +875,70 @@ const InstructorDashboard = () => {
             </div>
 
             {/* Segment Rewinds Chart */}
-            {selectedLecture?.lectureSegments && selectedLecture.lectureSegments.length > 0 && (
-              <Card className="glass-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart2 className="w-5 h-5 text-primary" />
-                    Segment Rewind Count
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={350}>
-                    <BarChart data={selectedLecture.lectureSegments.map((seg, index) => ({
-                      name: seg.title.length > 20 ? seg.title.substring(0, 20) + '...' : seg.title,
-                      fullName: seg.title,
-                      rewinds: seg.count || 0,
-                      index,
-                      time: `${Math.floor(seg.start / 60)}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}`,
-                    }))}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis 
-                        dataKey="name" 
-                        stroke="hsl(var(--muted-foreground))" 
-                        tick={{ fontSize: 11 }}
-                        angle={-45}
-                        textAnchor="end"
-                        height={100}
-                      />
-                      <YAxis stroke="hsl(var(--muted-foreground))" />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                        }}
-                        formatter={(value: unknown, _name: unknown, props: unknown) => {
-                          const count = typeof value === 'number' ? value : Number(value);
-                          const payload = (props as { payload?: { index?: number; fullName?: string } })?.payload;
-                          const segmentIndex = payload?.index ?? 0;
-                          const fullName = payload?.fullName ?? '';
-                          return [
-                            `${Number.isFinite(count) ? count : value} rewind${count !== 1 ? 's' : ''}`,
-                            `Segment ${segmentIndex + 1}: ${fullName}`,
-                          ];
-                        }}
-                      />
-                      <Bar dataKey="rewinds" fill={CHART_COLORS[2]} name="Rewinds" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            )}
+            {(() => {
+              const chartSegments =
+                (segmentRewindData?.segments && segmentRewindData.segments.length > 0)
+                  ? segmentRewindData.segments
+                  : (selectedLecture?.lectureSegments || []);
+
+              if (chartSegments.length === 0) {
+                return null;
+              }
+
+              return (
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart2 className="w-5 h-5 text-primary" />
+                      Segment Rewind Count
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={350}>
+                      <BarChart data={chartSegments.map((seg, index) => {
+                        const count = seg.count ?? 0;
+                        return {
+                          name: seg.title.length > 20 ? seg.title.substring(0, 20) + '...' : seg.title,
+                          fullName: seg.title,
+                          rewinds: count,
+                          index,
+                          time: `${Math.floor(seg.start / 60)}:${String(Math.floor(seg.start % 60)).padStart(2, '0')}`,
+                        };
+                      })}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="hsl(var(--muted-foreground))" 
+                          tick={{ fontSize: 11 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={100}
+                        />
+                        <YAxis stroke="hsl(var(--muted-foreground))" />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                          formatter={(value: unknown, _name: unknown, props: unknown) => {
+                            const count = typeof value === 'number' ? value : Number(value);
+                            const payload = (props as { payload?: { index?: number; fullName?: string } })?.payload;
+                            const segmentIndex = payload?.index ?? 0;
+                            const fullName = payload?.fullName ?? '';
+                            return [
+                              `${Number.isFinite(count) ? count : value} rewind${count !== 1 ? 's' : ''}`,
+                              `Segment ${segmentIndex + 1}: ${fullName}`,
+                            ];
+                          }}
+                        />
+                        <Bar dataKey="rewinds" fill={CHART_COLORS[2]} name="Rewinds" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </TabsContent>
 
           {/* Timeline Tab */}

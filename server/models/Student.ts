@@ -27,7 +27,7 @@ const LectureProgressSchema = new Schema<ILectureProgress>({
   courseId: { type: String, required: true },
   lectureTitle: { type: String, required: true },
   assignedAt: { type: Date, default: Date.now },
-  rewindEvents: { type: Schema.Types.Mixed, default: [] },
+  rewindEvents: { type: [Schema.Types.Mixed], default: [] },
   lastAccessedAt: { type: Date },
   maxWatchedTimestamp: { type: Number, default: 0 },
   watchedTimestamps: { type: [Number], default: [] },
