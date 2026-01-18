@@ -789,7 +789,7 @@ def create_app():
             task = (
                 "Create a multiple-choice quiz. You MUST generate exactly one question for each "
                 "segment provided in the 'Topics' section. Ensure each question has 4 options, "
-                "one correct answer, and a brief explanation."
+                "one correct answer, and a brief explanation. Make sure that each question is based off of the relevant content being discussed, not about the visual scenery of the video."
             )
         elif content_type == "summary":
             system_prompt = "You are an expert summarizer."

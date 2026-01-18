@@ -4,18 +4,17 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle, ChevronRight, RotateCcw } from 'lucide-react';
-import { LatexRenderer } from './LatexRenderer'; // removed .tsx extension
+import { LatexRenderer } from './LatexRenderer';
 
 interface QuizQuestion {
     question: string;
     options: string[];
-    correctAnswer: string; // Stored as 'A', 'B', 'C', or 'D'
+    correctAnswer: string | number;
     explanation?: string;
 }
 
-// Updated interface to include the "details" array
 interface QuizDisplayProps {
-    quizContent: string | { questions: any[] };
+    quizContent: string | { questions: QuizQuestion[] };
     onClose: () => void;
     onFinish?: (results: { 
         score: number; 
@@ -23,13 +22,12 @@ interface QuizDisplayProps {
         percentage: number;
         details: Array<{
             question: string;
-            isCorrect: number; // store 1 or 0
-            userAnswer: string; // letter 'A' | 'B' | ...
+            isCorrect: number; 
+            userAnswer: string;
         }>
     }) => void;
 }
 
-// Normalized internal types
 type NormalizedOption = { letter: string; text: string };
 type NormalizedQuestion = {
     question: string;
@@ -46,149 +44,72 @@ const QuizDisplay = ({ quizContent, onClose, onFinish }: QuizDisplayProps) => {
     const [showResults, setShowResults] = useState(false);
 
     const questions = useMemo((): NormalizedQuestion[] => {
-        const toOptions = (arr: string[]): NormalizedOption[] => {
+        const toOptions = (arr: any[]): NormalizedOption[] => {
             return arr.map((raw, i) => {
-                const m = raw.match(/^\s*([A-Za-z])\)\s*(.*)$/);
+                const rawStr = String(raw);
+                const m = rawStr.match(/^\s*([A-Za-z])\)\s*(.*)$/);
                 if (m && m[1]) {
-                    const letter = m[1].toUpperCase();
-                    const text = (m[2] ?? '').trim();
-                    return { letter, text: text || raw.trim() };
+                    return { letter: m[1].toUpperCase(), text: (m[2] ?? '').trim() || rawStr.trim() };
                 }
-                return { letter: LETTERS[i] || String.fromCharCode(65 + i), text: raw.trim() };
+                return { letter: LETTERS[i], text: rawStr.trim() };
             });
         };
 
         const normalizeCorrectLetter = (ca: any, opts: NormalizedOption[]): string => {
-            if (typeof ca === 'number') {
-                return opts[ca]?.letter || 'A';
-            }
-            if (typeof ca === 'string') {
-                const s = ca.trim();
-                // direct letter
-                if (/^[A-Z]$/i.test(s)) return s.toUpperCase();
-                // match by text (exact or trimmed)
-                const hit = opts.find(o => o.text === s || o.text.replace(/^([A-Z])\)\s*/, '') === s);
-                if (hit) return hit.letter;
-            }
-            return opts[0]?.letter || 'A';
+            if (ca === undefined || ca === null) return opts[0]?.letter || 'A';
+            if (typeof ca === 'number') return opts[ca]?.letter || LETTERS[ca] || 'A';
+            
+            const s = String(ca).trim().toUpperCase();
+            // If the answer is "B) The importance of safety...", extract just the "B"
+            const letterMatch = s.match(/^([A-Z])(?:\)|:|\.|\s|$)/);
+            if (letterMatch) return letterMatch[1];
+
+            const hit = opts.find(o => o.text.toUpperCase() === s || o.letter === s);
+            return hit ? hit.letter : (opts[0]?.letter || 'A');
         };
 
-        // 1) If it's a string, try JSON first; else parse markdown-ish
-        if (typeof quizContent === 'string') {
+        let rawQuestions: any[] = [];
+
+        if (typeof quizContent === 'object' && quizContent !== null) {
+            rawQuestions = (quizContent as any).questions || (Array.isArray(quizContent) ? quizContent : []);
+        } 
+        else if (typeof quizContent === 'string') {
             try {
-                const parsed = JSON.parse(quizContent);
-                if (parsed && Array.isArray(parsed.questions)) {
-                    const out: NormalizedQuestion[] = parsed.questions.map((q: any) => {
-                        const optsText: string[] =
-                            q.options ||
-                            q.answerOptions?.map((o: any) => o.text) ||
-                            [];
-                        const opts = toOptions(optsText);
-                        // prefer explicit letter on answerOptions if present
-                        const ca =
-                            q.correctAnswer ??
-                            q.answerOptions?.find((o: any) => o.isCorrect)?.letter ??
-                            q.answerOptions?.find((o: any) => o.isCorrect)?.text;
-                        const correctLetter = normalizeCorrectLetter(ca, opts);
-                        return {
-                            question: q.question,
-                            options: opts,
-                            correctLetter,
-                            explanation: q.explanation,
-                        };
-                    });
-                    return out;
+                // 1. STRONGER JSON EXTRACTION: Find the first [ or { and last ] or }
+                const startIdx = Math.min(
+                    quizContent.indexOf('[') === -1 ? Infinity : quizContent.indexOf('['),
+                    quizContent.indexOf('{') === -1 ? Infinity : quizContent.indexOf('{')
+                );
+                const endIdx = Math.max(quizContent.lastIndexOf(']'), quizContent.lastIndexOf('}'));
+                
+                if (startIdx !== Infinity && endIdx !== -1) {
+                    const jsonString = quizContent.substring(startIdx, endIdx + 1);
+                    const parsed = JSON.parse(jsonString);
+                    rawQuestions = parsed.questions || (Array.isArray(parsed) ? parsed : []);
                 }
-            } catch {
-                // not JSON -> fall through to text parsing
+            } catch (e) {
+                console.error("JSON Parse Error", e);
             }
-
-            // Fallback: parse text/markdown
-            const content = String(quizContent);
-            const out: NormalizedQuestion[] = [];
-            let blocks = content.split(/(?=###?\s*Question\s*\d+)|(?=\*\*Question\s*\d+[:)]?\*\*)/i);
-            if (blocks.length <= 1) {
-                blocks = content.split(/(?=^\s*\d+\.\s*\*\*.+\*\*)/m);
-            }
-
-            blocks.forEach((block) => {
-                const trimmedBlock = block.trim();
-                if (!trimmedBlock || trimmedBlock.length < 20) return;
-                const lines = trimmedBlock.split('\n').map(l => l.trim()).filter(Boolean);
-                let questionText = '';
-                const rawOptions: string[] = [];
-                let correctAnswerLetter = '';
-                let parsingOptions = false;
-
-                lines.forEach(line => {
-                    if (/^(###?\s*)?Question\s*\d+/i.test(line)) return;
-                    if (/^\d+\.\s*\*\*.+\*\*/.test(line)) {
-                        questionText += (questionText ? ' ' : '') + line.replace(/^\d+\.\s*\*\*|\*\*$/g, '');
-                        return;
-                    }
-
-                    const optionMatch = line.match(/^[-*]?\s*([A-Da-d])\)\s*(.*)/);
-                    const answerMatch = line.match(/(?:\*\*)?Answer:(?:\*\*)?\s*([A-Da-d])/i);
-
-                    if (optionMatch) {
-                        parsingOptions = true;
-                        // Keep the full "A) ..." form so we can normalize letters reliably
-                        rawOptions.push(`${optionMatch[1].toUpperCase()}) ${optionMatch[2] || ''}`.trim());
-                    } else if (answerMatch) {
-                        correctAnswerLetter = answerMatch[1].toUpperCase();
-                    } else if (!parsingOptions && !line.startsWith('---')) {
-                        questionText += (questionText ? ' ' : '') + line.replace(/^\*\*|\*\*$/g, '');
-                    }
-                });
-
-                if (questionText && rawOptions.length > 0) {
-                    const opts = toOptions(rawOptions);
-                    const correctLetter = correctAnswerLetter || opts[0].letter;
-                    out.push({
-                        question: questionText,
-                        options: opts,
-                        correctLetter,
-                    });
-                }
-            });
-
-            return out;
         }
 
-        // 2) Already-parsed object case
-        if (typeof quizContent === 'object' && quizContent.questions) {
-            return quizContent.questions.map((q: any, idx: number) => {
-                const optsText: string[] =
-                    q.options ||
-                    q.answerOptions?.map((o: any) => o.text) ||
-                    [];
-                const opts = toOptions(optsText);
-                const ca =
-                    q.correctAnswer ??
-                    q.answerOptions?.find((o: any) => o.isCorrect)?.letter ??
-                    q.answerOptions?.find((o: any) => o.isCorrect)?.text;
-                const correctLetter = normalizeCorrectLetter(ca, opts);
-                return {
-                    question: q.question,
-                    options: opts,
-                    correctLetter,
-                    explanation: q.explanation,
-                };
-            });
-        }
-
-        return [];
+        return rawQuestions.map((q: any) => {
+            const optsText = q.options || q.answerOptions?.map((o: any) => o.text) || [];
+            const opts = toOptions(optsText);
+            
+            // 2. HANDLE 'correct_answer' vs 'correctAnswer'
+            const rawCorrect = q.correctAnswer ?? q.correct_answer ?? q.answerOptions?.find((o: any) => o.isCorrect)?.letter;
+            
+            return {
+                question: q.question || "Untitled Question",
+                options: opts,
+                correctLetter: normalizeCorrectLetter(rawCorrect, opts),
+                explanation: q.explanation || q.reasoning,
+            };
+        });
     }, [quizContent]);
 
     const handleSelectAnswer = (letter: string) => {
         setSelectedAnswers({ ...selectedAnswers, [currentQuestion]: letter });
-    };
-
-    const calculateScore = () => {
-        return questions.reduce((score, q, idx) => {
-            const userLetter = selectedAnswers[idx];
-            return userLetter === q.correctLetter ? score + 1 : score;
-        }, 0);
     };
 
     const handleNext = () => {
@@ -199,35 +120,21 @@ const QuizDisplay = ({ quizContent, onClose, onFinish }: QuizDisplayProps) => {
         }
     };
 
-    const handleRestart = () => {
-        setCurrentQuestion(0);
-        setSelectedAnswers({});
-        setShowResults(false);
-    };
-
-    // Modified to create the detailed list of questions/correctness
     const handleCompleteQuiz = () => {
-        const score = calculateScore();
+        const score = questions.reduce((acc, q, idx) => 
+            selectedAnswers[idx] === q.correctLetter ? acc + 1 : acc, 0
+        );
         const total = questions.length;
         const percentage = Math.round((score / total) * 100);
 
-        const detailedResults = questions.map((q, idx) => {
-            const userLetter = selectedAnswers[idx];
-            const isCorrectBinary = userLetter === q.correctLetter ? 1 : 0;
-            return {
-                question: q.question,
-                isCorrect: isCorrectBinary,
-                userAnswer: userLetter || '',
-            };
-        });
+        const detailedResults = questions.map((q, idx) => ({
+            question: q.question,
+            isCorrect: selectedAnswers[idx] === q.correctLetter ? 1 : 0,
+            userAnswer: selectedAnswers[idx] || '',
+        }));
 
         if (onFinish) {
-            onFinish({
-                score,
-                total,
-                percentage,
-                details: detailedResults
-            });
+            onFinish({ score, total, percentage, details: detailedResults });
         }
         onClose();
     };
@@ -235,10 +142,10 @@ const QuizDisplay = ({ quizContent, onClose, onFinish }: QuizDisplayProps) => {
     if (questions.length === 0) {
         return (
             <Card className="glass-card p-6 border-red-500/50 bg-red-500/5">
-                <h3 className="text-xl font-bold mb-2">Quiz Parsing Error</h3>
-                <p className="text-muted-foreground mb-4 text-sm">We couldn't automatically format the quiz.</p>
-                <div className="bg-black/10 p-4 rounded-md text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto mb-4">
-                    {String(quizContent)}
+                <h3 className="text-xl font-bold mb-2">Formatting Error</h3>
+                <p className="text-muted-foreground mb-4 text-sm">The AI response format was unexpected.</p>
+                <div className="bg-black/10 p-4 rounded-md text-xs font-mono whitespace-pre-wrap max-h-40 overflow-y-auto mb-4">
+                    {JSON.stringify(quizContent, null, 2)}
                 </div>
                 <Button onClick={onClose} variant="outline" className="w-full">Close</Button>
             </Card>
@@ -246,47 +153,33 @@ const QuizDisplay = ({ quizContent, onClose, onFinish }: QuizDisplayProps) => {
     }
 
     if (showResults) {
-        const score = calculateScore();
-        const percentage = Math.round((score / questions.length) * 100);
-
+        const score = questions.reduce((acc, q, idx) => selectedAnswers[idx] === q.correctLetter ? acc + 1 : acc, 0);
         return (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <Card className="glass-card p-6 border-primary/30">
                     <div className="text-center mb-6">
                         <h3 className="text-2xl font-bold mb-2">Quiz Results</h3>
                         <div className="text-5xl font-extrabold gradient-text mb-2">{score} / {questions.length}</div>
-                        <p className="text-muted-foreground">Accuracy: {percentage}%</p>
                     </div>
 
-                    <div className="space-y-4 mb-6 max-h-[400px] overflow-y-auto pr-2 text-left">
-                        {questions.map((q, idx) => {
-                            const userLetter = selectedAnswers[idx];
-                            const isCorrect = userLetter === q.correctLetter;
-                            const userOpt = q.options.find(o => o.letter === userLetter);
-                            const correctOpt = q.options.find(o => o.letter === q.correctLetter);
-
-                            return (
-                                <div key={idx} className={`p-4 rounded-lg border ${isCorrect ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                                    <p className="font-medium text-sm mb-2">{q.question}</p>
-                                    <div className="flex items-center gap-2 text-xs">
-                                        {isCorrect ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />}
-                                        <span>
-                                            Your answer: {userOpt ? `${userOpt.letter}) ${userOpt.text}` : '—'}
-                                        </span>
-                                    </div>
-                                    {!isCorrect && correctOpt && (
-                                        <p className="text-xs text-green-600 mt-1 font-semibold">
-                                            Correct: {correctOpt.letter}) {correctOpt.text}
-                                        </p>
+                    <div className="space-y-4 mb-6 max-h-[350px] overflow-y-auto pr-2">
+                        {questions.map((q, idx) => (
+                            <div key={idx} className={`p-4 rounded-lg border ${selectedAnswers[idx] === q.correctLetter ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                <p className="font-medium text-sm mb-2">{q.question}</p>
+                                <div className="flex items-center gap-2 text-xs">
+                                    {selectedAnswers[idx] === q.correctLetter ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-500" />}
+                                    <span>Answer: {selectedAnswers[idx] || 'None'}</span>
+                                    {selectedAnswers[idx] !== q.correctLetter && (
+                                        <span className="text-green-600 font-bold ml-auto">Correct: {q.correctLetter}</span>
                                     )}
                                 </div>
-                            );
-                        })}
+                            </div>
+                        ))}
                     </div>
 
                     <div className="flex gap-3">
-                        <Button onClick={handleRestart} className="flex-1" variant="outline"><RotateCcw className="w-4 h-4 mr-2" /> Retry</Button>
-                        <Button onClick={handleCompleteQuiz} className="flex-1 gradient-bg">Finish</Button>
+                        <Button onClick={() => { setShowResults(false); setCurrentQuestion(0); setSelectedAnswers({}); }} className="flex-1" variant="outline">Retry</Button>
+                        <Button onClick={handleCompleteQuiz} className="flex-1 gradient-bg">Save & Finish</Button>
                     </div>
                 </Card>
             </motion.div>
@@ -294,24 +187,19 @@ const QuizDisplay = ({ quizContent, onClose, onFinish }: QuizDisplayProps) => {
     }
 
     const currentQ = questions[currentQuestion];
+
     return (
         <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
-            <Card className="glass-card p-6 border-primary/30 relative overflow-hidden">
+            <Card className="glass-card p-6 border-primary/30 relative">
                 <div className="flex items-center justify-between mb-6">
-                    <Badge variant="secondary" className="bg-primary/10 text-primary">Question {currentQuestion + 1} of {questions.length}</Badge>
-                    <div className="h-1 w-24 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-primary transition-all" style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }} />
-                    </div>
+                    <Badge variant="secondary" className="bg-primary/10 text-primary">
+                        Question {currentQuestion + 1} of {questions.length}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground italic">One question per video segment</span>
                 </div>
 
                 <AnimatePresence mode="wait">
-                    <motion.div
-                        key={currentQuestion}
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        className="min-h-[200px]"
-                    >
+                    <motion.div key={currentQuestion} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                         <h3 className="text-lg font-medium mb-6 text-left">
                             <LatexRenderer text={currentQ.question} />
                         </h3>
@@ -320,34 +208,26 @@ const QuizDisplay = ({ quizContent, onClose, onFinish }: QuizDisplayProps) => {
                                 <button
                                     key={opt.letter}
                                     onClick={() => handleSelectAnswer(opt.letter)}
-                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 text-sm ${
+                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all text-sm ${
                                         selectedAnswers[currentQuestion] === opt.letter
-                                            ? 'border-primary bg-primary/10 ring-1 ring-primary'
-                                            : 'border-border hover:border-primary/40 hover:bg-muted/50'
+                                            ? 'border-primary bg-primary/5'
+                                            : 'border-border hover:border-primary/30'
                                     }`}
                                 >
-                                    <LatexRenderer text={`${opt.letter}) ${opt.text}`} />
+                                    <span className="font-bold mr-2">{opt.letter})</span>
+                                    <LatexRenderer text={opt.text} />
                                 </button>
                             ))}
                         </div>
                     </motion.div>
                 </AnimatePresence>
 
-                <div className="flex items-center justify-between mt-8 pt-4 border-t border-border">
-                    <Button
-                        variant="ghost"
-                        onClick={() => setCurrentQuestion(prev => prev - 1)}
-                        disabled={currentQuestion === 0}
-                    >
+                <div className="flex items-center justify-between mt-8 pt-4 border-t">
+                    <Button variant="ghost" onClick={() => setCurrentQuestion(prev => prev - 1)} disabled={currentQuestion === 0}>
                         Back
                     </Button>
-                    <Button
-                        onClick={handleNext}
-                        disabled={!selectedAnswers[currentQuestion]}
-                        className="px-8 gradient-bg"
-                    >
-                        {currentQuestion === questions.length - 1 ? 'See Results' : 'Next'}
-                        <ChevronRight className="w-4 h-4 ml-1" />
+                    <Button onClick={handleNext} disabled={!selectedAnswers[currentQuestion]} className="gradient-bg px-8">
+                        {currentQuestion === questions.length - 1 ? 'Finish' : 'Next'}
                     </Button>
                 </div>
             </Card>
