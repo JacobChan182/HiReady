@@ -368,7 +368,9 @@ const StudentDashboard = () => {
 
     setIsGeneratingQuiz(true);
     try {
-      const response = await fetch('http://localhost:5001/api/backboard/generate-content', {
+      // Use the same BACKEND_URL as other Flask API calls
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:5001/api';
+      const response = await fetch(`${BACKEND_URL}/backboard/generate-content`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
